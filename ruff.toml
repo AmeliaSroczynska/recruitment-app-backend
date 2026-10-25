@@ -1,5 +1,4 @@
-[tool.ruff]
 extend-exclude = ["*/migrations/*"]
 
-[tool.ruff.lint]
+[lint]
 extend-select = ["I"]
