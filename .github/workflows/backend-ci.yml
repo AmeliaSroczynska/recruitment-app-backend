@@ -61,3 +61,30 @@ jobs:
 
       - name: Uruchomienie migracji
         run: python manage.py migrate
+
+  migrate-production:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency: migrate-production
+
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-a-real-secret
+      DJANGO_DEBUG: "False"
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+
+    steps:
+      - name: Pobranie kodu
+        uses: actions/checkout@v5
+
+      - name: Instalacja Pythona 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalacja zależności
+        run: pip install -r requirements.txt
+
+      - name: Migracje na bazie produkcyjnej
+        run: python manage.py migrate --noinput
