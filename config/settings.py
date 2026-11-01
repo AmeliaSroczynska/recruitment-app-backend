@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    "drf_spectacular",
     "accounts",
     "organizations",
     "recruitment",
@@ -163,6 +164,7 @@ AUTH_USER_MODEL = "accounts.User"
 
 
 REST_FRAMEWORK = {
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "DEFAULT_AUTHENTICATION_CLASSES": [
         "rest_framework.authentication.SessionAuthentication",
     ],
@@ -176,6 +178,12 @@ REST_FRAMEWORK = {
         "auth_code": "10/hour",
         "auth_login": "30/hour",
     },
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Rekrutownik API",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }
 
 CACHES = {
