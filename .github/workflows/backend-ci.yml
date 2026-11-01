@@ -88,3 +88,6 @@ jobs:
 
       - name: Migracje na bazie produkcyjnej
         run: python manage.py migrate --noinput
+
+      - name: Tabela dla cache na bazie produkcyjnej
+        run: python manage.py createcachetable
