@@ -188,8 +188,10 @@ SPECTACULAR_SETTINGS = {
         {"name": "Logowanie", "description": "Logowanie kodem z maila i dane konta"},
         {"name": "Organizacja", "description": "Tworzenie organizacji i jej dane"},
         {"name": "Edycje", "description": "Edycje naboru w organizacji"},
+        {"name": "Członkowie", "description": "Zespół edycji i role"},
     ],
     "SERVE_INCLUDE_SCHEMA": False,
+    "ENUM_NAME_OVERRIDES": {"RoleNameEnum": "organizations.models.Role.Name"},
 }
 
 CACHES = {

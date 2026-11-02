@@ -1,6 +1,9 @@
 from django.db import transaction
 from django.utils import timezone
 from django.utils.text import slugify
+from rest_framework.exceptions import ValidationError
+
+from accounts.services import get_or_create_user
 
 from .models import Edition, Membership, Organization, Role
 
@@ -40,3 +43,40 @@ def create_organization(user, name, contact_email):
     )
     edition = create_edition(organization, user, f"Nabór {timezone.now().year}")
     return organization, edition
+
+
+def is_last_coordinator(membership):
+    if membership.role.name != Role.Name.COORDINATOR:
+        return False
+    return not (
+        membership.edition.memberships.filter(role__name=Role.Name.COORDINATOR)
+        .exclude(pk=membership.pk)
+        .exists()
+    )
+
+
+def add_member(edition, email, role):
+    user = get_or_create_user(email)
+    if edition.memberships.filter(user=user).exists():
+        raise ValidationError({"email": "Ta osoba jest już w tej edycji."})
+    return Membership.objects.create(edition=edition, user=user, role=role)
+
+
+@transaction.atomic
+def change_role(membership, role):
+    if role.name != Role.Name.COORDINATOR and is_last_coordinator(membership):
+        raise ValidationError(
+            {"role": "Edycja musi mieć co najmniej jednego koordynatora."}
+        )
+    membership.role = role
+    membership.save(update_fields=["role"])
+    return membership
+
+
+@transaction.atomic
+def remove_member(membership):
+    if is_last_coordinator(membership):
+        raise ValidationError(
+            {"detail": "Nie można usunąć ostatniego koordynatora edycji."}
+        )
+    membership.delete()

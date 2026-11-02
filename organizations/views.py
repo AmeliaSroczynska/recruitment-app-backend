@@ -1,17 +1,28 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from .models import Role
 from .permissions import IsCoordinator
 from .serializers import (
     CreatedOrganizationSerializer,
     EditionSerializer,
+    MemberCreateSerializer,
+    MemberSerializer,
     OrganizationCreateSerializer,
     OrganizationSerializer,
+    RoleSerializer,
 )
-from .services import create_edition, create_organization
+from .services import (
+    add_member,
+    change_role,
+    create_edition,
+    create_organization,
+    remove_member,
+)
 
 
 class OrganizationCreateView(APIView):
@@ -119,3 +130,85 @@ class EditionDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class RoleListView(APIView):
+    @extend_schema(
+        tags=["Członkowie"],
+        summary="Lista ról",
+        description="Role do wyboru przy dodawaniu członka.",
+        responses={200: RoleSerializer(many=True)},
+    )
+    def get(self, request):
+        roles = sorted(
+            Role.objects.all(), key=lambda role: Role.Name.values.index(role.name)
+        )
+        return Response(RoleSerializer(roles, many=True).data)
+
+
+class MemberListView(APIView):
+    permission_classes = (IsAuthenticated, IsCoordinator)
+
+    @extend_schema(
+        tags=["Członkowie"],
+        summary="Lista członków edycji",
+        description="Osoby z zespołu i ich role. Widzi każdy członek edycji.",
+        responses={200: MemberSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        members = self.edition.memberships.select_related("user", "role").order_by(
+            "user__email"
+        )
+        return Response(MemberSerializer(members, many=True).data)
+
+    @extend_schema(
+        tags=["Członkowie"],
+        summary="Dodaj członka",
+        description="Dodaje osobę po e-mailu z wybraną rolą. Jeśli konta nie ma, zakłada je. Tylko koordynator.",
+        request=MemberCreateSerializer,
+        responses={201: MemberSerializer},
+    )
+    def post(self, request, edition_id):
+        serializer = MemberCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        membership = add_member(
+            self.edition,
+            serializer.validated_data["email"],
+            serializer.validated_data["role"],
+        )
+        return Response(
+            MemberSerializer(membership).data, status=status.HTTP_201_CREATED
+        )
+
+
+class MemberDetailView(APIView):
+    permission_classes = (IsAuthenticated, IsCoordinator)
+
+    def get_membership(self, member_id):
+        return get_object_or_404(
+            self.edition.memberships.select_related("user", "role"), pk=member_id
+        )
+
+    @extend_schema(
+        tags=["Członkowie"],
+        summary="Zmień rolę członka",
+        description="Ostatniego koordynatora nie da się zmienić na inną rolę. Tylko koordynator.",
+        request=MemberSerializer,
+        responses={200: MemberSerializer},
+    )
+    def patch(self, request, edition_id, member_id):
+        membership = self.get_membership(member_id)
+        serializer = MemberSerializer(membership, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        role = serializer.validated_data.get("role", membership.role)
+        return Response(MemberSerializer(change_role(membership, role)).data)
+
+    @extend_schema(
+        tags=["Członkowie"],
+        summary="Usuń członka z edycji",
+        description="Ostatniego koordynatora nie da się usunąć. Tylko koordynator.",
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, member_id):
+        remove_member(self.get_membership(member_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
