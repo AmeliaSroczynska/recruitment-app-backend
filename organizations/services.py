@@ -20,18 +20,23 @@ def generate_slug(name):
 
 
 @transaction.atomic
-def create_organization(user, name, contact_email):
-    organization = Organization.objects.create(
-        name=name, contact_email=contact_email, slug=generate_slug(name)
-    )
+def create_edition(organization, user, name):
+    organization.editions.filter(is_active=True).update(is_active=False)
     edition = Edition.objects.create(
-        organization=organization,
-        name=f"Nabór {timezone.now().year}",
-        is_active=True,
+        organization=organization, name=name, is_active=True
     )
     Membership.objects.create(
         edition=edition,
         user=user,
         role=Role.objects.get(name=Role.Name.COORDINATOR),
     )
+    return edition
+
+
+@transaction.atomic
+def create_organization(user, name, contact_email):
+    organization = Organization.objects.create(
+        name=name, contact_email=contact_email, slug=generate_slug(name)
+    )
+    edition = create_edition(organization, user, f"Nabór {timezone.now().year}")
     return organization, edition

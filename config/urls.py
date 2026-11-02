@@ -19,10 +19,13 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from organizations.urls import edition_urlpatterns, organization_urlpatterns
+
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),
-    path("api/organizations/", include("organizations.urls")),
+    path("api/organizations/", include(organization_urlpatterns)),
+    path("api/editions/", include(edition_urlpatterns)),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
