@@ -16,6 +16,9 @@ from .services import create_edition, create_organization
 
 class OrganizationCreateView(APIView):
     @extend_schema(
+        tags=["Organizacja"],
+        summary="Utwórz organizację",
+        description="Tworzy organizację, jej pierwszą edycję i robi Cię w niej koordynatorem.",
         request=OrganizationCreateSerializer,
         responses={201: CreatedOrganizationSerializer},
     )
@@ -37,12 +40,21 @@ class OrganizationCreateView(APIView):
 class OrganizationDetailView(APIView):
     permission_classes = (IsAuthenticated, IsCoordinator)
 
-    @extend_schema(responses={200: OrganizationSerializer})
+    @extend_schema(
+        tags=["Organizacja"],
+        summary="Dane organizacji",
+        description="Organizacja, do której należy edycja. Widzi każdy członek edycji.",
+        responses={200: OrganizationSerializer},
+    )
     def get(self, request, edition_id):
         return Response(OrganizationSerializer(self.edition.organization).data)
 
     @extend_schema(
-        request=OrganizationSerializer, responses={200: OrganizationSerializer}
+        tags=["Organizacja"],
+        summary="Zmień dane organizacji",
+        description="Nazwa, e-mail kontaktowy, adres (slug). Tylko koordynator.",
+        request=OrganizationSerializer,
+        responses={200: OrganizationSerializer},
     )
     def patch(self, request, edition_id):
         serializer = OrganizationSerializer(
@@ -56,12 +68,23 @@ class OrganizationDetailView(APIView):
 class EditionListView(APIView):
     permission_classes = (IsAuthenticated, IsCoordinator)
 
-    @extend_schema(responses={200: EditionSerializer(many=True)})
+    @extend_schema(
+        tags=["Edycje"],
+        summary="Lista edycji organizacji",
+        description="Wszystkie edycje, najnowsza pierwsza.",
+        responses={200: EditionSerializer(many=True)},
+    )
     def get(self, request, edition_id):
         editions = self.edition.organization.editions.order_by("-id")
         return Response(EditionSerializer(editions, many=True).data)
 
-    @extend_schema(request=EditionSerializer, responses={201: EditionSerializer})
+    @extend_schema(
+        tags=["Edycje"],
+        summary="Nowa edycja",
+        description="Poprzednia edycja przestaje być aktywna. Nowa startuje pusta, a Ty jesteś w niej koordynatorem. Tylko koordynator.",
+        request=EditionSerializer,
+        responses={201: EditionSerializer},
+    )
     def post(self, request, edition_id):
         serializer = EditionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -76,11 +99,21 @@ class EditionListView(APIView):
 class EditionDetailView(APIView):
     permission_classes = (IsAuthenticated, IsCoordinator)
 
-    @extend_schema(responses={200: EditionSerializer})
+    @extend_schema(
+        tags=["Edycje"],
+        summary="Dane edycji",
+        responses={200: EditionSerializer},
+    )
     def get(self, request, edition_id):
         return Response(EditionSerializer(self.edition).data)
 
-    @extend_schema(request=EditionSerializer, responses={200: EditionSerializer})
+    @extend_schema(
+        tags=["Edycje"],
+        summary="Zmień nazwę edycji",
+        description="Tylko koordynator.",
+        request=EditionSerializer,
+        responses={200: EditionSerializer},
+    )
     def patch(self, request, edition_id):
         serializer = EditionSerializer(self.edition, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
