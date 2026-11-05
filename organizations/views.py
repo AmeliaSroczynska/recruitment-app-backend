@@ -21,6 +21,7 @@ from .services import (
     change_role,
     create_edition,
     create_organization,
+    delete_edition,
     remove_member,
 )
 
@@ -130,6 +131,20 @@ class EditionDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Edycje"],
+        summary="Usuń edycję",
+        description=(
+            "Tylko koordynator. Usuwa edycję razem ze wszystkim, co w niej jest. "
+            "Jedynej edycji organizacji nie da się usunąć. Jeśli usuwana edycja "
+            "była aktywna, aktywna staje się najnowsza z pozostałych."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id):
+        delete_edition(self.edition)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class RoleListView(APIView):

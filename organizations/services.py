@@ -80,3 +80,18 @@ def remove_member(membership):
             {"detail": "Nie można usunąć ostatniego koordynatora edycji."}
         )
     membership.delete()
+
+
+@transaction.atomic
+def delete_edition(edition):
+    organization = edition.organization
+    if organization.editions.count() == 1:
+        raise ValidationError(
+            {"detail": "Nie można usunąć jedynej edycji organizacji."}
+        )
+    was_active = edition.is_active
+    edition.delete()
+    if was_active:
+        newest = organization.editions.order_by("-id").first()
+        newest.is_active = True
+        newest.save(update_fields=["is_active"])
