@@ -1,3 +1,4 @@
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
@@ -32,6 +33,11 @@ class ChoiceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Choice
         fields = ("id", "text", "position")
+        read_only_fields = ("position",)
+
+
+class QuestionOrderSerializer(serializers.Serializer):
+    ids = serializers.ListField(child=serializers.IntegerField())
 
 
 class QuestionSerializer(serializers.ModelSerializer):
@@ -40,9 +46,14 @@ class QuestionSerializer(serializers.ModelSerializer):
         queryset=QuestionType.objects.exclude(name=QuestionType.Name.FILE),
         error_messages={"does_not_exist": "Nie ma takiego typu pytania."},
     )
-    choices = ChoiceSerializer(many=True, read_only=True)
+    choices = serializers.SerializerMethodField()
 
     class Meta:
         model = FormQuestion
         fields = ("id", "type", "text", "position", "is_required", "choices")
         read_only_fields = ("position",)
+
+    @extend_schema_field(ChoiceSerializer(many=True))
+    def get_choices(self, question):
+        choices = [choice for choice in question.choices.all() if not choice.is_deleted]
+        return ChoiceSerializer(choices, many=True).data

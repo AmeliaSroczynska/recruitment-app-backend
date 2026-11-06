@@ -1,4 +1,3 @@
-from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.generics import get_object_or_404
@@ -9,8 +8,21 @@ from rest_framework.views import APIView
 from organizations.permissions import IsRecruiter
 
 from .models import Choice, FormQuestion, QuestionType
-from .serializers import FormSerializer, QuestionSerializer, QuestionTypeSerializer
-from .services import create_question, delete_question, get_or_create_form
+from .serializers import (
+    ChoiceSerializer,
+    FormSerializer,
+    QuestionOrderSerializer,
+    QuestionSerializer,
+    QuestionTypeSerializer,
+)
+from .services import (
+    create_choice,
+    create_question,
+    delete_choice,
+    delete_question,
+    get_or_create_form,
+    reorder_questions,
+)
 
 
 class FormDetailView(APIView):
@@ -75,9 +87,7 @@ class QuestionListView(APIView):
             get_or_create_form(self.edition)
             .questions.filter(is_deleted=False)
             .select_related("type")
-            .prefetch_related(
-                Prefetch("choices", queryset=Choice.objects.filter(is_deleted=False))
-            )
+            .prefetch_related("choices")
         )
         return Response(QuestionSerializer(questions, many=True).data)
 
@@ -136,4 +146,94 @@ class QuestionDetailView(APIView):
     )
     def delete(self, request, edition_id, question_id):
         delete_question(self.get_question(question_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class QuestionOrderView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Zmień kolejność pytań",
+        description=(
+            "Przyjmuje id wszystkich pytań formularza w nowej kolejności. "
+            "Rekruter i koordynator."
+        ),
+        request=QuestionOrderSerializer,
+        responses={204: None},
+    )
+    def post(self, request, edition_id):
+        serializer = QuestionOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reorder_questions(
+            get_or_create_form(self.edition), serializer.validated_data["ids"]
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ChoiceListView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Dodaj opcję odpowiedzi",
+        description=(
+            "Nowa opcja trafia na koniec. Tylko dla pytań typu Jedna opcja "
+            "i Wiele opcji. Rekruter i koordynator."
+        ),
+        request=ChoiceSerializer,
+        responses={201: ChoiceSerializer},
+    )
+    def post(self, request, edition_id, question_id):
+        question = get_object_or_404(
+            FormQuestion.objects.select_related("type"),
+            form__edition=self.edition,
+            pk=question_id,
+            is_deleted=False,
+        )
+        serializer = ChoiceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        choice = create_choice(question, serializer.validated_data["text"])
+        return Response(ChoiceSerializer(choice).data, status=status.HTTP_201_CREATED)
+
+
+class ChoiceDetailView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    def get_choice(self, question_id, choice_id):
+        return get_object_or_404(
+            Choice,
+            question__form__edition=self.edition,
+            question_id=question_id,
+            question__is_deleted=False,
+            pk=choice_id,
+            is_deleted=False,
+        )
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Zmień opcję odpowiedzi",
+        description="Rekruter i koordynator.",
+        request=ChoiceSerializer,
+        responses={200: ChoiceSerializer},
+    )
+    def patch(self, request, edition_id, question_id, choice_id):
+        serializer = ChoiceSerializer(
+            self.get_choice(question_id, choice_id), data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Usuń opcję odpowiedzi",
+        description=(
+            "Opcja znika z formularza, ale zostaje w bazie, żeby odpowiedzi "
+            "kandydatów nie przepadły. Rekruter i koordynator."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, question_id, choice_id):
+        delete_choice(self.get_choice(question_id, choice_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
