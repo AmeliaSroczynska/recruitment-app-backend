@@ -24,12 +24,14 @@ from organizations.urls import (
     organization_urlpatterns,
     role_urlpatterns,
 )
+from recruitment.urls import edition_urlpatterns as recruitment_edition_urlpatterns
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/auth/", include("accounts.urls")),
     path("api/organizations/", include(organization_urlpatterns)),
     path("api/editions/", include(edition_urlpatterns)),
+    path("api/editions/", include(recruitment_edition_urlpatterns)),
     path("api/roles/", include(role_urlpatterns)),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(

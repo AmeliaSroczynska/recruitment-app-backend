@@ -189,6 +189,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Organizacja", "description": "Tworzenie organizacji i jej dane"},
         {"name": "Edycje", "description": "Edycje naboru w organizacji"},
         {"name": "Członkowie", "description": "Zespół edycji i role"},
+        {"name": "Formularz", "description": "Formularz zgłoszeniowy edycji"},
     ],
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {"RoleNameEnum": "organizations.models.Role.Name"},

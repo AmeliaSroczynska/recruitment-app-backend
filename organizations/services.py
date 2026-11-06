@@ -7,17 +7,16 @@ from accounts.services import get_or_create_user
 
 from .models import Edition, Membership, Organization, Role
 
-SLUG_MAX_LENGTH = Organization._meta.get_field("slug").max_length
 
-
-def generate_slug(name):
-    base = slugify(name.replace("ł", "l").replace("Ł", "L"))[:SLUG_MAX_LENGTH]
+def generate_slug(name, model=Organization):
+    max_length = model._meta.get_field("slug").max_length
+    base = slugify(name.replace("ł", "l").replace("Ł", "L"))[:max_length]
     base = base.strip("-") or "organizacja"
     slug = base
     number = 2
-    while Organization.objects.filter(slug=slug).exists():
+    while model.objects.filter(slug=slug).exists():
         suffix = f"-{number}"
-        slug = f"{base[: SLUG_MAX_LENGTH - len(suffix)]}{suffix}"
+        slug = f"{base[: max_length - len(suffix)]}{suffix}"
         number += 1
     return slug
 
