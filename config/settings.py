@@ -192,7 +192,10 @@ SPECTACULAR_SETTINGS = {
         {"name": "Formularz", "description": "Formularz zgłoszeniowy edycji"},
     ],
     "SERVE_INCLUDE_SCHEMA": False,
-    "ENUM_NAME_OVERRIDES": {"RoleNameEnum": "organizations.models.Role.Name"},
+    "ENUM_NAME_OVERRIDES": {
+        "RoleNameEnum": "organizations.models.Role.Name",
+        "QuestionTypeNameEnum": "recruitment.models.QuestionType.Name",
+    },
 }
 
 CACHES = {

@@ -1,12 +1,16 @@
+from django.db.models import Prefetch
 from drf_spectacular.utils import extend_schema
+from rest_framework import status
+from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from organizations.permissions import IsRecruiter
 
-from .serializers import FormSerializer
-from .services import get_or_create_form
+from .models import Choice, FormQuestion, QuestionType
+from .serializers import FormSerializer, QuestionSerializer, QuestionTypeSerializer
+from .services import create_question, delete_question, get_or_create_form
 
 
 class FormDetailView(APIView):
@@ -27,9 +31,7 @@ class FormDetailView(APIView):
     @extend_schema(
         tags=["Formularz"],
         summary="Zmień ustawienia formularza",
-        description=(
-            "Tytuł, opis, adres (slug) i przyjmowanie zgłoszeń. Rekruter i koordynator."
-        ),
+        description="Tytuł, opis, adres (slug) i przyjmowanie zgłoszeń. Rekruter i koordynator.",
         request=FormSerializer,
         responses={200: FormSerializer},
     )
@@ -40,3 +42,98 @@ class FormDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class QuestionTypeListView(APIView):
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Typy pytań",
+        description="Typy pytań do wyboru w edytorze formularza.",
+        responses={200: QuestionTypeSerializer(many=True)},
+    )
+    def get(self, request):
+        question_types = sorted(
+            QuestionType.objects.exclude(name=QuestionType.Name.FILE),
+            key=lambda question_type: QuestionType.Name.values.index(
+                question_type.name
+            ),
+        )
+        return Response(QuestionTypeSerializer(question_types, many=True).data)
+
+
+class QuestionListView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Lista pytań",
+        description="Pytania formularza w kolejności, razem z opcjami odpowiedzi. Widzi każdy członek edycji.",
+        responses={200: QuestionSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        questions = (
+            get_or_create_form(self.edition)
+            .questions.filter(is_deleted=False)
+            .select_related("type")
+            .prefetch_related(
+                Prefetch("choices", queryset=Choice.objects.filter(is_deleted=False))
+            )
+        )
+        return Response(QuestionSerializer(questions, many=True).data)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Dodaj pytanie",
+        description="Nowe pytanie trafia na koniec formularza. Rekruter i koordynator.",
+        request=QuestionSerializer,
+        responses={201: QuestionSerializer},
+    )
+    def post(self, request, edition_id):
+        serializer = QuestionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        question = create_question(
+            get_or_create_form(self.edition), **serializer.validated_data
+        )
+        return Response(
+            QuestionSerializer(question).data, status=status.HTTP_201_CREATED
+        )
+
+
+class QuestionDetailView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    def get_question(self, question_id):
+        return get_object_or_404(
+            FormQuestion.objects.select_related("type"),
+            form__edition=self.edition,
+            is_deleted=False,
+            pk=question_id,
+        )
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Zmień pytanie",
+        description="Treść, typ i to, czy pytanie jest obowiązkowe. Rekruter i koordynator.",
+        request=QuestionSerializer,
+        responses={200: QuestionSerializer},
+    )
+    def patch(self, request, edition_id, question_id):
+        serializer = QuestionSerializer(
+            self.get_question(question_id), data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Usuń pytanie",
+        description=(
+            "Pytanie znika z formularza, ale zostaje w bazie, żeby odpowiedzi "
+            "kandydatów nie przepadły. Rekruter i koordynator."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, question_id):
+        delete_question(self.get_question(question_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)

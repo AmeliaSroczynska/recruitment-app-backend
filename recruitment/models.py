@@ -83,6 +83,7 @@ class FormQuestion(models.Model):
     text = models.TextField()
     position = models.PositiveIntegerField()
     is_required = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
 
     class Meta:
         db_table = "recruitment_form_question"
@@ -98,6 +99,7 @@ class Choice(models.Model):
     )
     text = models.CharField(max_length=200)
     position = models.PositiveIntegerField()
+    is_deleted = models.BooleanField(default=False)
 
     class Meta:
         db_table = "recruitment_choice"
