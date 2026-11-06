@@ -17,11 +17,16 @@ def generate_code():
     return f"{secrets.randbelow(1_000_000):06d}"
 
 
-def create_login_code(email):
+def get_or_create_user(email):
     email = normalize_email(email)
     user = User.objects.filter(email=email).first()
     if user is None:
         user = User.objects.create_user(email=email)
+    return user
+
+
+def create_login_code(email):
+    user = get_or_create_user(email)
     now = timezone.now()
     user.login_codes.filter(used_at__isnull=True, expires_at__gt=now).update(
         expires_at=now

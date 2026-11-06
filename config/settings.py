@@ -182,8 +182,16 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Rekrutownik API",
+    "DESCRIPTION": "Adresy z {edition_id} działają tylko dla członków tej edycji. Osoba spoza edycji dostaje 404, a brak uprawnień do zmian daje 403.",
     "VERSION": "1.0.0",
+    "TAGS": [
+        {"name": "Logowanie", "description": "Logowanie kodem z maila i dane konta"},
+        {"name": "Organizacja", "description": "Tworzenie organizacji i jej dane"},
+        {"name": "Edycje", "description": "Edycje naboru w organizacji"},
+        {"name": "Członkowie", "description": "Zespół edycji i role"},
+    ],
     "SERVE_INCLUDE_SCHEMA": False,
+    "ENUM_NAME_OVERRIDES": {"RoleNameEnum": "organizations.models.Role.Name"},
 }
 
 CACHES = {
