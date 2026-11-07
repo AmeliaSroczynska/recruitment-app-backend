@@ -57,3 +57,29 @@ class QuestionSerializer(serializers.ModelSerializer):
     def get_choices(self, question):
         choices = [choice for choice in question.choices.all() if not choice.is_deleted]
         return ChoiceSerializer(choices, many=True).data
+
+
+class PublicFormSerializer(serializers.ModelSerializer):
+    organization_name = serializers.CharField(source="edition.organization.name")
+    questions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Form
+        fields = (
+            "title",
+            "description",
+            "organization_name",
+            "is_accepting_responses",
+            "questions",
+        )
+
+    @extend_schema_field(QuestionSerializer(many=True))
+    def get_questions(self, form):
+        if not form.is_accepting_responses:
+            return []
+        questions = (
+            form.questions.filter(is_deleted=False)
+            .select_related("type")
+            .prefetch_related("choices")
+        )
+        return QuestionSerializer(questions, many=True).data

@@ -1,16 +1,17 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.generics import get_object_or_404
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from organizations.permissions import IsRecruiter
 
-from .models import Choice, FormQuestion, QuestionType
+from .models import Choice, Form, FormQuestion, QuestionType
 from .serializers import (
     ChoiceSerializer,
     FormSerializer,
+    PublicFormSerializer,
     QuestionOrderSerializer,
     QuestionSerializer,
     QuestionTypeSerializer,
@@ -237,3 +238,23 @@ class ChoiceDetailView(APIView):
     def delete(self, request, edition_id, question_id, choice_id):
         delete_choice(self.get_choice(question_id, choice_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PublicFormView(APIView):
+    authentication_classes = ()
+    permission_classes = (AllowAny,)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Publiczny formularz",
+        description=(
+            "Formularz zgłoszeniowy dla kandydata, bez logowania. Gdy formularz "
+            "nie przyjmuje zgłoszeń, lista pytań jest pusta."
+        ),
+        responses={200: PublicFormSerializer},
+    )
+    def get(self, request, slug):
+        form = get_object_or_404(
+            Form.objects.select_related("edition__organization"), slug=slug
+        )
+        return Response(PublicFormSerializer(form).data)

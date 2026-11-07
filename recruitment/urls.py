@@ -4,6 +4,7 @@ from .views import (
     ChoiceDetailView,
     ChoiceListView,
     FormDetailView,
+    PublicFormView,
     QuestionDetailView,
     QuestionListView,
     QuestionOrderView,
@@ -30,4 +31,8 @@ form_urlpatterns = [
 
 question_type_urlpatterns = [
     path("", QuestionTypeListView.as_view()),
+]
+
+public_form_urlpatterns = [
+    path("<slug:slug>/", PublicFormView.as_view()),
 ]
