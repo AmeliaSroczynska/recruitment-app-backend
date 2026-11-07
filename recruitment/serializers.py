@@ -2,6 +2,8 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
+from config.files import get_file_url
+
 from .models import (
     Answer,
     Application,
@@ -162,6 +164,7 @@ class CandidateApplicationSerializer(serializers.ModelSerializer):
     organization_email = serializers.EmailField(
         source="form.edition.organization.contact_email"
     )
+    organization_logo_url = serializers.SerializerMethodField()
     answers = AnswerSerializer(many=True)
 
     class Meta:
@@ -176,8 +179,12 @@ class CandidateApplicationSerializer(serializers.ModelSerializer):
             "edition_id",
             "organization_name",
             "organization_email",
+            "organization_logo_url",
             "answers",
         )
+
+    def get_organization_logo_url(self, application) -> str | None:
+        return get_file_url(application.form.edition.organization.logo)
 
 
 class ApplicationStatusSerializer(serializers.Serializer):
