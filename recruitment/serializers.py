@@ -28,10 +28,28 @@ class FormSerializer(serializers.ModelSerializer):
             )
         ],
     )
+    header_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Form
-        fields = ("id", "title", "description", "slug", "is_accepting_responses")
+        fields = (
+            "id",
+            "title",
+            "description",
+            "slug",
+            "is_accepting_responses",
+            "header_image_url",
+        )
+
+    def get_header_image_url(self, form) -> str | None:
+        return get_file_url(form.header_image)
+
+
+class FormHeaderImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Form
+        fields = ("header_image",)
+        extra_kwargs = {"header_image": {"required": True, "allow_null": False}}
 
 
 class QuestionTypeSerializer(serializers.ModelSerializer):
@@ -74,6 +92,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 class PublicFormSerializer(serializers.ModelSerializer):
     organization_name = serializers.CharField(source="edition.organization.name")
+    header_image_url = serializers.SerializerMethodField()
     questions = serializers.SerializerMethodField()
 
     class Meta:
@@ -82,9 +101,13 @@ class PublicFormSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "organization_name",
+            "header_image_url",
             "is_accepting_responses",
             "questions",
         )
+
+    def get_header_image_url(self, form) -> str | None:
+        return get_file_url(form.header_image)
 
     @extend_schema_field(QuestionSerializer(many=True))
     def get_questions(self, form):

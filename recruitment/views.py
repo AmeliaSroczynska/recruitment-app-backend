@@ -3,10 +3,12 @@ from rest_framework import serializers, status
 from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import get_object_or_404
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.files import replace_file
 from organizations.permissions import IsEditionMember, IsRecruiter
 
 from .emails import send_application_received
@@ -25,6 +27,7 @@ from .serializers import (
     ApplicationStatusSerializer,
     CandidateApplicationSerializer,
     ChoiceSerializer,
+    FormHeaderImageSerializer,
     FormSerializer,
     NoteSerializer,
     PublicFormSerializer,
@@ -81,6 +84,39 @@ class FormDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class FormHeaderImageView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+    parser_classes = (MultiPartParser,)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Wgraj zdjęcie nagłówka formularza",
+        description=(
+            "Plik w polu header_image (jpg, png, webp, do 4 MB). Zastępuje stare "
+            "zdjęcie. Rekruter i koordynator."
+        ),
+        request={"multipart/form-data": FormHeaderImageSerializer},
+        responses={200: FormSerializer},
+    )
+    def post(self, request, edition_id):
+        serializer = FormHeaderImageSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        form = get_or_create_form(self.edition)
+        replace_file(form, "header_image", serializer.validated_data["header_image"])
+        return Response(FormSerializer(form).data)
+
+    @extend_schema(
+        tags=["Formularz"],
+        summary="Usuń zdjęcie nagłówka formularza",
+        description="Formularz zostaje bez zdjęcia. Rekruter i koordynator.",
+        responses={200: FormSerializer},
+    )
+    def delete(self, request, edition_id):
+        form = get_or_create_form(self.edition)
+        replace_file(form, "header_image", None)
+        return Response(FormSerializer(form).data)
 
 
 class QuestionTypeListView(APIView):
