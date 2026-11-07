@@ -13,7 +13,9 @@ from .models import (
     Choice,
     Form,
     FormQuestion,
+    Note,
     QuestionType,
+    Rating,
 )
 
 CHOICE_TYPES = (QuestionType.Name.SINGLE_CHOICE, QuestionType.Name.MULTIPLE_CHOICE)
@@ -203,3 +205,23 @@ def change_status(application, status_name):
     elif application.accepted_at is None:
         application.accepted_at = timezone.now()
     application.save(update_fields=["status", "accepted_at"])
+
+
+def list_ratings(application):
+    return application.ratings.select_related("membership__user").order_by("id")
+
+
+def rate_application(application, membership, value):
+    Rating.objects.update_or_create(
+        application=application, membership=membership, defaults={"value": value}
+    )
+
+
+def list_notes(application):
+    return application.notes.select_related("membership__user").order_by("id")
+
+
+def create_note(application, membership, text):
+    return Note.objects.create(
+        application=application, membership=membership, text=text
+    )

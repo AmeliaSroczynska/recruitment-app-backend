@@ -7,11 +7,14 @@ from .views import (
     ChoiceDetailView,
     ChoiceListView,
     FormDetailView,
+    NoteDetailView,
+    NoteListView,
     PublicFormView,
     QuestionDetailView,
     QuestionListView,
     QuestionOrderView,
     QuestionTypeListView,
+    RatingListView,
 )
 
 form_urlpatterns = [
@@ -46,5 +49,17 @@ application_urlpatterns = [
     path(
         "<int:edition_id>/applications/<int:application_id>/",
         ApplicationDetailView.as_view(),
+    ),
+    path(
+        "<int:edition_id>/applications/<int:application_id>/ratings/",
+        RatingListView.as_view(),
+    ),
+    path(
+        "<int:edition_id>/applications/<int:application_id>/notes/",
+        NoteListView.as_view(),
+    ),
+    path(
+        "<int:edition_id>/applications/<int:application_id>/notes/<int:note_id>/",
+        NoteDetailView.as_view(),
     ),
 ]

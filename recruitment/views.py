@@ -1,5 +1,6 @@
 from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.generics import get_object_or_404
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -9,7 +10,14 @@ from rest_framework.views import APIView
 from organizations.permissions import IsEditionMember, IsRecruiter
 
 from .emails import send_application_received
-from .models import ApplicationStatus, Choice, Form, FormQuestion, QuestionType
+from .models import (
+    Application,
+    ApplicationStatus,
+    Choice,
+    Form,
+    FormQuestion,
+    QuestionType,
+)
 from .serializers import (
     ApplicationCreateSerializer,
     ApplicationDetailSerializer,
@@ -17,20 +25,26 @@ from .serializers import (
     ApplicationStatusSerializer,
     ChoiceSerializer,
     FormSerializer,
+    NoteSerializer,
     PublicFormSerializer,
     QuestionOrderSerializer,
     QuestionSerializer,
     QuestionTypeSerializer,
+    RatingSerializer,
 )
 from .services import (
     change_status,
     create_choice,
+    create_note,
     create_question,
     delete_choice,
     delete_question,
     get_application_details,
     get_or_create_form,
     list_applications,
+    list_notes,
+    list_ratings,
+    rate_application,
     reorder_questions,
     submit_application,
 )
@@ -401,3 +415,106 @@ class ApplicationDetailView(APIView):
         return Response(
             ApplicationDetailSerializer(self.get_application(application_id)).data
         )
+
+
+class ApplicationScopedView(APIView):
+    permission_classes = (IsAuthenticated, IsEditionMember)
+
+    def get_application(self, application_id):
+        return get_object_or_404(
+            Application, form__edition=self.edition, pk=application_id
+        )
+
+
+class RatingListView(ApplicationScopedView):
+    @extend_schema(
+        tags=["Oceny i notatki"],
+        summary="Oceny zgłoszenia",
+        description="Oceny wszystkich osób z zespołu. Widzi każdy członek edycji.",
+        responses={200: RatingSerializer(many=True)},
+    )
+    def get(self, request, edition_id, application_id):
+        application = self.get_application(application_id)
+        return Response(RatingSerializer(list_ratings(application), many=True).data)
+
+    @extend_schema(
+        tags=["Oceny i notatki"],
+        summary="Oceń zgłoszenie",
+        description=(
+            "Ocena od 1 do 5. Każda osoba ma jedną ocenę, więc kolejna ją zmienia. "
+            "Każdy członek edycji poza obserwatorem."
+        ),
+        request=RatingSerializer,
+        responses={200: RatingSerializer(many=True)},
+    )
+    def post(self, request, edition_id, application_id):
+        application = self.get_application(application_id)
+        serializer = RatingSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        rate_application(
+            application, self.membership, serializer.validated_data["value"]
+        )
+        return Response(RatingSerializer(list_ratings(application), many=True).data)
+
+
+class NoteListView(ApplicationScopedView):
+    @extend_schema(
+        tags=["Oceny i notatki"],
+        summary="Notatki zgłoszenia",
+        description="Notatki zespołu o kandydacie. Widzi każdy członek edycji.",
+        responses={200: NoteSerializer(many=True)},
+    )
+    def get(self, request, edition_id, application_id):
+        application = self.get_application(application_id)
+        return Response(NoteSerializer(list_notes(application), many=True).data)
+
+    @extend_schema(
+        tags=["Oceny i notatki"],
+        summary="Dodaj notatkę",
+        description="Każdy członek edycji poza obserwatorem.",
+        request=NoteSerializer,
+        responses={201: NoteSerializer},
+    )
+    def post(self, request, edition_id, application_id):
+        application = self.get_application(application_id)
+        serializer = NoteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        note = create_note(
+            application, self.membership, serializer.validated_data["text"]
+        )
+        return Response(NoteSerializer(note).data, status=status.HTTP_201_CREATED)
+
+
+class NoteDetailView(ApplicationScopedView):
+    def get_note(self, application_id, note_id):
+        note = get_object_or_404(
+            list_notes(self.get_application(application_id)), pk=note_id
+        )
+        if note.membership != self.membership:
+            raise PermissionDenied("Możesz zmieniać tylko swoje notatki.")
+        return note
+
+    @extend_schema(
+        tags=["Oceny i notatki"],
+        summary="Zmień notatkę",
+        description="Tylko autor notatki. Cudza notatka daje 403.",
+        request=NoteSerializer,
+        responses={200: NoteSerializer},
+    )
+    def patch(self, request, edition_id, application_id, note_id):
+        serializer = NoteSerializer(
+            self.get_note(application_id, note_id), data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Oceny i notatki"],
+        summary="Usuń notatkę",
+        description="Tylko autor notatki. Cudza notatka daje 403.",
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, application_id, note_id):
+        self.get_note(application_id, note_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

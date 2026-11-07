@@ -9,7 +9,9 @@ from .models import (
     Choice,
     Form,
     FormQuestion,
+    Note,
     QuestionType,
+    Rating,
 )
 from .services import get_public_questions, prepare_answers
 
@@ -152,3 +154,31 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
 
 class ApplicationStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=ApplicationStatus.Name.choices)
+
+
+class AuthorSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(
+        source="membership.user.first_name", read_only=True
+    )
+    last_name = serializers.CharField(
+        source="membership.user.last_name", read_only=True
+    )
+    email = serializers.EmailField(source="membership.user.email", read_only=True)
+
+
+class RatingSerializer(AuthorSerializer):
+    value = serializers.IntegerField(min_value=1, max_value=5)
+
+    class Meta:
+        model = Rating
+        fields = ("id", "membership", "first_name", "last_name", "email", "value")
+        read_only_fields = ("membership",)
+
+
+class NoteSerializer(AuthorSerializer):
+    text = serializers.CharField(max_length=5000)
+
+    class Meta:
+        model = Note
+        fields = ("id", "membership", "first_name", "last_name", "email", "text")
+        read_only_fields = ("membership",)

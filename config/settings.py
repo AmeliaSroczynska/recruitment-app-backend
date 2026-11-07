@@ -192,6 +192,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Członkowie", "description": "Zespół edycji i role"},
         {"name": "Formularz", "description": "Formularz zgłoszeniowy edycji"},
         {"name": "Zgłoszenia", "description": "Zgłoszenia kandydatów"},
+        {"name": "Oceny i notatki", "description": "Oceny i notatki zespołu"},
     ],
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
