@@ -139,6 +139,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     status = serializers.CharField(source="status.name")
     rating_average = serializers.FloatField(allow_null=True)
     rating_count = serializers.IntegerField()
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -147,11 +148,15 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "email",
+            "photo_url",
             "status",
             "submitted_at",
             "rating_average",
             "rating_count",
         )
+
+    def get_photo_url(self, application) -> str | None:
+        return get_file_url(application.user.photo)
 
 
 class AnswerSerializer(serializers.ModelSerializer):
