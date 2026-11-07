@@ -175,7 +175,10 @@ class Rating(models.Model):
         Application, on_delete=models.CASCADE, related_name="ratings"
     )
     membership = models.ForeignKey(
-        "organizations.Membership", on_delete=models.CASCADE, related_name="ratings"
+        "organizations.Membership",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="ratings",
     )
     value = models.SmallIntegerField()
 
@@ -199,7 +202,10 @@ class Note(models.Model):
         Application, on_delete=models.CASCADE, related_name="notes"
     )
     membership = models.ForeignKey(
-        "organizations.Membership", on_delete=models.CASCADE, related_name="notes"
+        "organizations.Membership",
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="notes",
     )
     text = models.TextField()
 
