@@ -1,5 +1,5 @@
-from django.db import transaction
-from django.db.models import Max, Prefetch
+from django.db import IntegrityError, transaction
+from django.db.models import Avg, Count, F, Max, Prefetch, Q
 from rest_framework.exceptions import ValidationError
 
 from accounts.services import get_or_create_user
@@ -16,6 +16,19 @@ from .models import (
 )
 
 CHOICE_TYPES = (QuestionType.Name.SINGLE_CHOICE, QuestionType.Name.MULTIPLE_CHOICE)
+
+DUPLICATE_APPLICATION_MESSAGE = (
+    "Z tego adresu wysłano już zgłoszenie do tego formularza."
+)
+
+APPLICATION_ORDERINGS = {
+    "submitted_at": (F("submitted_at").asc(),),
+    "-submitted_at": (F("submitted_at").desc(),),
+    "name": (F("user__last_name").asc(), F("user__first_name").asc()),
+    "-name": (F("user__last_name").desc(), F("user__first_name").desc()),
+    "rating": (F("rating_average").asc(nulls_last=True),),
+    "-rating": (F("rating_average").desc(nulls_last=True),),
+}
 
 
 def get_or_create_form(edition):
@@ -91,7 +104,7 @@ def prepare_answer(question, answer):
     return "", choices
 
 
-def prepare_answers(form, answers):
+def get_public_questions(form):
     questions = (
         form.questions.filter(is_deleted=False)
         .select_related("type")
@@ -99,6 +112,15 @@ def prepare_answers(form, answers):
             Prefetch("choices", queryset=Choice.objects.filter(is_deleted=False))
         )
     )
+    return [
+        question
+        for question in questions
+        if question.type.name not in CHOICE_TYPES or question.choices.all()
+    ]
+
+
+def prepare_answers(form, answers):
+    questions = get_public_questions(form)
     given = {answer["question"]: answer for answer in answers}
     prepared = []
     errors = {}
@@ -121,19 +143,20 @@ def submit_application(form, first_name, last_name, email, answers):
         raise ValidationError({"detail": "Ten formularz nie przyjmuje już zgłoszeń."})
     user = get_or_create_user(email)
     if form.applications.filter(user=user).exists():
-        raise ValidationError(
-            {"email": "Z tego adresu wysłano już zgłoszenie do tego formularza."}
-        )
+        raise ValidationError({"email": DUPLICATE_APPLICATION_MESSAGE})
     if not user.first_name and not user.last_name:
         user.first_name = first_name
         user.last_name = last_name
         user.save(update_fields=["first_name", "last_name"])
 
-    application = Application.objects.create(
-        form=form,
-        user=user,
-        status=ApplicationStatus.objects.get(name=ApplicationStatus.Name.NEW),
-    )
+    try:
+        application = Application.objects.create(
+            form=form,
+            user=user,
+            status=ApplicationStatus.objects.get(name=ApplicationStatus.Name.NEW),
+        )
+    except IntegrityError:
+        raise ValidationError({"email": DUPLICATE_APPLICATION_MESSAGE}) from None
     for question, text, choices in answers:
         answer = Answer.objects.create(
             application=application, question=question, text=text or None
@@ -141,3 +164,21 @@ def submit_application(form, first_name, last_name, email, answers):
         if choices:
             answer.selected_choices.set(choices)
     return application
+
+
+def list_applications(edition, status=None, search=None, ordering=None):
+    applications = (
+        Application.objects.filter(form__edition=edition)
+        .select_related("user", "status")
+        .annotate(rating_average=Avg("ratings__value"), rating_count=Count("ratings"))
+    )
+    if status:
+        applications = applications.filter(status__name=status)
+    for word in (search or "").split():
+        applications = applications.filter(
+            Q(user__first_name__icontains=word)
+            | Q(user__last_name__icontains=word)
+            | Q(user__email__icontains=word)
+        )
+    order = APPLICATION_ORDERINGS.get(ordering, APPLICATION_ORDERINGS["-submitted_at"])
+    return applications.order_by(*order, "-id")

@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     ApplicationCreateView,
+    ApplicationListView,
     ChoiceDetailView,
     ChoiceListView,
     FormDetailView,
@@ -37,4 +38,8 @@ question_type_urlpatterns = [
 public_form_urlpatterns = [
     path("<slug:slug>/", PublicFormView.as_view()),
     path("<slug:slug>/applications/", ApplicationCreateView.as_view()),
+]
+
+application_urlpatterns = [
+    path("<int:edition_id>/applications/", ApplicationListView.as_view()),
 ]

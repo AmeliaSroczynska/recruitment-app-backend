@@ -25,6 +25,7 @@ from organizations.urls import (
     role_urlpatterns,
 )
 from recruitment.urls import (
+    application_urlpatterns,
     form_urlpatterns,
     public_form_urlpatterns,
     question_type_urlpatterns,
@@ -36,6 +37,7 @@ urlpatterns = [
     path("api/organizations/", include(organization_urlpatterns)),
     path("api/editions/", include(edition_urlpatterns)),
     path("api/editions/", include(form_urlpatterns)),
+    path("api/editions/", include(application_urlpatterns)),
     path("api/roles/", include(role_urlpatterns)),
     path("api/question-types/", include(question_type_urlpatterns)),
     path("api/forms/", include(public_form_urlpatterns)),

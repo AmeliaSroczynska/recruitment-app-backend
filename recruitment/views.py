@@ -1,16 +1,18 @@
-from drf_spectacular.utils import extend_schema, inline_serializer
+from drf_spectacular.utils import OpenApiParameter, extend_schema, inline_serializer
 from rest_framework import serializers, status
 from rest_framework.generics import get_object_or_404
+from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from organizations.permissions import IsRecruiter
+from organizations.permissions import IsEditionMember, IsRecruiter
 
 from .emails import send_application_received
-from .models import Choice, Form, FormQuestion, QuestionType
+from .models import ApplicationStatus, Choice, Form, FormQuestion, QuestionType
 from .serializers import (
     ApplicationCreateSerializer,
+    ApplicationListSerializer,
     ChoiceSerializer,
     FormSerializer,
     PublicFormSerializer,
@@ -24,6 +26,7 @@ from .services import (
     delete_choice,
     delete_question,
     get_or_create_form,
+    list_applications,
     reorder_questions,
     submit_application,
 )
@@ -294,3 +297,59 @@ class ApplicationCreateView(APIView):
         application = submit_application(form, **serializer.validated_data)
         send_application_received(application)
         return Response({"id": application.id}, status=status.HTTP_201_CREATED)
+
+
+class ApplicationPagination(PageNumberPagination):
+    page_size = 20
+
+
+class ApplicationListView(APIView):
+    permission_classes = (IsAuthenticated, IsEditionMember)
+
+    @extend_schema(
+        tags=["Zgłoszenia"],
+        summary="Lista zgłoszeń",
+        description=(
+            "Zgłoszenia w edycji, po 20 na stronę. Widzi każdy członek edycji. "
+            "Szukanie działa po imieniu, nazwisku i e-mailu."
+        ),
+        parameters=[
+            OpenApiParameter("status", enum=ApplicationStatus.Name.values),
+            OpenApiParameter("search", str),
+            OpenApiParameter(
+                "ordering",
+                enum=[
+                    "submitted_at",
+                    "-submitted_at",
+                    "name",
+                    "-name",
+                    "rating",
+                    "-rating",
+                ],
+            ),
+            OpenApiParameter("page", int),
+        ],
+        responses={
+            200: inline_serializer(
+                "ApplicationPage",
+                {
+                    "count": serializers.IntegerField(),
+                    "next": serializers.URLField(allow_null=True),
+                    "previous": serializers.URLField(allow_null=True),
+                    "results": ApplicationListSerializer(many=True),
+                },
+            )
+        },
+    )
+    def get(self, request, edition_id):
+        applications = list_applications(
+            self.edition,
+            status=request.query_params.get("status"),
+            search=request.query_params.get("search"),
+            ordering=request.query_params.get("ordering"),
+        )
+        paginator = ApplicationPagination()
+        page = paginator.paginate_queryset(applications, request, view=self)
+        return paginator.get_paginated_response(
+            ApplicationListSerializer(page, many=True).data
+        )

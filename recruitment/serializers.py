@@ -2,8 +2,8 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import Choice, Form, FormQuestion, QuestionType
-from .services import prepare_answers
+from .models import Application, Choice, Form, FormQuestion, QuestionType
+from .services import get_public_questions, prepare_answers
 
 
 class FormSerializer(serializers.ModelSerializer):
@@ -78,12 +78,7 @@ class PublicFormSerializer(serializers.ModelSerializer):
     def get_questions(self, form):
         if not form.is_accepting_responses:
             return []
-        questions = (
-            form.questions.filter(is_deleted=False)
-            .select_related("type")
-            .prefetch_related("choices")
-        )
-        return QuestionSerializer(questions, many=True).data
+        return QuestionSerializer(get_public_questions(form), many=True).data
 
 
 class AnswerInputSerializer(serializers.Serializer):
@@ -100,3 +95,25 @@ class ApplicationCreateSerializer(serializers.Serializer):
 
     def validate_answers(self, answers):
         return prepare_answers(self.context["form"], answers)
+
+
+class ApplicationListSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name")
+    last_name = serializers.CharField(source="user.last_name")
+    email = serializers.EmailField(source="user.email")
+    status = serializers.CharField(source="status.name")
+    rating_average = serializers.FloatField(allow_null=True)
+    rating_count = serializers.IntegerField()
+
+    class Meta:
+        model = Application
+        fields = (
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "status",
+            "submitted_at",
+            "rating_average",
+            "rating_count",
+        )
