@@ -34,6 +34,10 @@ IMAGE_VALIDATORS = [validate_file_size, validate_image]
 FILE_VALIDATORS = [validate_file_size, validate_image_or_document]
 
 
+def get_file_url(file):
+    return file.url if file else None
+
+
 def replace_file(instance, field_name, new_file):
     old_file = getattr(instance, field_name)
     old_name = old_file.name if old_file else None

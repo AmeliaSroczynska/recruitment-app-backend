@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
+from config.files import get_file_url
+
 from .models import Edition, Membership, Organization, Role
 
 
@@ -38,7 +40,7 @@ class OrganizationSerializer(serializers.ModelSerializer):
         fields = ("id", "name", "slug", "contact_email", "logo_url")
 
     def get_logo_url(self, organization) -> str | None:
-        return organization.logo.url if organization.logo else None
+        return get_file_url(organization.logo)
 
 
 class OrganizationLogoSerializer(serializers.ModelSerializer):
