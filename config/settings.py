@@ -177,6 +177,7 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_RATES": {
         "auth_code": "10/hour",
         "auth_login": "30/hour",
+        "application_submit": "20/hour",
     },
 }
 
@@ -189,9 +190,17 @@ SPECTACULAR_SETTINGS = {
         {"name": "Organizacja", "description": "Tworzenie organizacji i jej dane"},
         {"name": "Edycje", "description": "Edycje naboru w organizacji"},
         {"name": "Członkowie", "description": "Zespół edycji i role"},
+        {"name": "Formularz", "description": "Formularz zgłoszeniowy edycji"},
+        {"name": "Zgłoszenia", "description": "Zgłoszenia kandydatów"},
+        {"name": "Oceny i notatki", "description": "Oceny i notatki zespołu"},
+        {"name": "Panel kandydata", "description": "Zgłoszenie oczami kandydata"},
     ],
     "SERVE_INCLUDE_SCHEMA": False,
-    "ENUM_NAME_OVERRIDES": {"RoleNameEnum": "organizations.models.Role.Name"},
+    "ENUM_NAME_OVERRIDES": {
+        "RoleNameEnum": "organizations.models.Role.Name",
+        "QuestionTypeNameEnum": "recruitment.models.QuestionType.Name",
+        "ApplicationStatusNameEnum": "recruitment.models.ApplicationStatus.Name",
+    },
 }
 
 CACHES = {
@@ -215,6 +224,8 @@ EMAIL_USE_TLS = True
 DEFAULT_FROM_EMAIL = os.getenv(
     "DJANGO_DEFAULT_FROM_EMAIL", "Rekrutownik <noreply@localhost>"
 )
+
+FRONTEND_URL = os.getenv("DJANGO_FRONTEND_URL", "https://rekrutownik.vercel.app")
 
 LOGIN_CODE_LIFETIME_MINUTES = 10
 LOGIN_CODE_MAX_ATTEMPTS = 5
