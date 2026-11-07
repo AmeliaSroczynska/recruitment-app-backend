@@ -180,5 +180,5 @@ def list_applications(edition, status=None, search=None, ordering=None):
             | Q(user__last_name__icontains=word)
             | Q(user__email__icontains=word)
         )
-    order = APPLICATION_ORDERINGS.get(ordering, APPLICATION_ORDERINGS["-submitted_at"])
+    order = APPLICATION_ORDERINGS.get(ordering, APPLICATION_ORDERINGS["submitted_at"])
     return applications.order_by(*order, "-id")
