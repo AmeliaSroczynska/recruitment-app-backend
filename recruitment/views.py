@@ -12,7 +12,9 @@ from .emails import send_application_received
 from .models import ApplicationStatus, Choice, Form, FormQuestion, QuestionType
 from .serializers import (
     ApplicationCreateSerializer,
+    ApplicationDetailSerializer,
     ApplicationListSerializer,
+    ApplicationStatusSerializer,
     ChoiceSerializer,
     FormSerializer,
     PublicFormSerializer,
@@ -21,10 +23,12 @@ from .serializers import (
     QuestionTypeSerializer,
 )
 from .services import (
+    change_status,
     create_choice,
     create_question,
     delete_choice,
     delete_question,
+    get_application_details,
     get_or_create_form,
     list_applications,
     reorder_questions,
@@ -352,4 +356,48 @@ class ApplicationListView(APIView):
         page = paginator.paginate_queryset(applications, request, view=self)
         return paginator.get_paginated_response(
             ApplicationListSerializer(page, many=True).data
+        )
+
+
+class ApplicationDetailView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    def get_application(self, application_id):
+        return get_object_or_404(
+            get_application_details(self.edition), pk=application_id
+        )
+
+    @extend_schema(
+        tags=["Zgłoszenia"],
+        operation_id="editions_applications_detail",
+        summary="Karta kandydata",
+        description=(
+            "Dane kandydata, status i wszystkie odpowiedzi z formularza, także na "
+            "usunięte pytania. Widzi każdy członek edycji."
+        ),
+        responses={200: ApplicationDetailSerializer},
+    )
+    def get(self, request, edition_id, application_id):
+        return Response(
+            ApplicationDetailSerializer(self.get_application(application_id)).data
+        )
+
+    @extend_schema(
+        tags=["Zgłoszenia"],
+        summary="Zmień status zgłoszenia",
+        description=(
+            'Przy statusie "Przyjęty" zapisuje się data przyjęcia. '
+            "Rekruter i koordynator."
+        ),
+        request=ApplicationStatusSerializer,
+        responses={200: ApplicationDetailSerializer},
+    )
+    def patch(self, request, edition_id, application_id):
+        serializer = ApplicationStatusSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        change_status(
+            self.get_application(application_id), serializer.validated_data["status"]
+        )
+        return Response(
+            ApplicationDetailSerializer(self.get_application(application_id)).data
         )

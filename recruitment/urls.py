@@ -2,6 +2,7 @@ from django.urls import path
 
 from .views import (
     ApplicationCreateView,
+    ApplicationDetailView,
     ApplicationListView,
     ChoiceDetailView,
     ChoiceListView,
@@ -42,4 +43,8 @@ public_form_urlpatterns = [
 
 application_urlpatterns = [
     path("<int:edition_id>/applications/", ApplicationListView.as_view()),
+    path(
+        "<int:edition_id>/applications/<int:application_id>/",
+        ApplicationDetailView.as_view(),
+    ),
 ]

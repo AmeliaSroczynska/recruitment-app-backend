@@ -2,7 +2,15 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from .models import Application, Choice, Form, FormQuestion, QuestionType
+from .models import (
+    Answer,
+    Application,
+    ApplicationStatus,
+    Choice,
+    Form,
+    FormQuestion,
+    QuestionType,
+)
 from .services import get_public_questions, prepare_answers
 
 
@@ -117,3 +125,30 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "rating_average",
             "rating_count",
         )
+
+
+class AnswerSerializer(serializers.ModelSerializer):
+    question_text = serializers.CharField(source="question.text")
+    question_type = serializers.CharField(source="question.type.name")
+    choices = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Answer
+        fields = ("question", "question_text", "question_type", "text", "choices")
+
+    def get_choices(self, answer) -> list[str]:
+        choices = sorted(
+            answer.selected_choices.all(), key=lambda choice: choice.position
+        )
+        return [choice.text for choice in choices]
+
+
+class ApplicationDetailSerializer(ApplicationListSerializer):
+    answers = AnswerSerializer(many=True)
+
+    class Meta(ApplicationListSerializer.Meta):
+        fields = (*ApplicationListSerializer.Meta.fields, "accepted_at", "answers")
+
+
+class ApplicationStatusSerializer(serializers.Serializer):
+    status = serializers.ChoiceField(choices=ApplicationStatus.Name.choices)

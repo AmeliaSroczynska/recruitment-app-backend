@@ -1,5 +1,6 @@
 from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Prefetch, Q
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from accounts.services import get_or_create_user
@@ -182,3 +183,23 @@ def list_applications(edition, status=None, search=None, ordering=None):
         )
     order = APPLICATION_ORDERINGS.get(ordering, APPLICATION_ORDERINGS["submitted_at"])
     return applications.order_by(*order, "-id")
+
+
+def get_application_details(edition):
+    answers = (
+        Answer.objects.select_related("question__type")
+        .prefetch_related("selected_choices")
+        .order_by("question__position", "question__id")
+    )
+    return list_applications(edition).prefetch_related(
+        Prefetch("answers", queryset=answers)
+    )
+
+
+def change_status(application, status_name):
+    application.status = ApplicationStatus.objects.get(name=status_name)
+    if status_name != ApplicationStatus.Name.ACCEPTED:
+        application.accepted_at = None
+    elif application.accepted_at is None:
+        application.accepted_at = timezone.now()
+    application.save(update_fields=["status", "accepted_at"])

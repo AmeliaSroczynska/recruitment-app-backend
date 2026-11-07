@@ -197,6 +197,7 @@ SPECTACULAR_SETTINGS = {
     "ENUM_NAME_OVERRIDES": {
         "RoleNameEnum": "organizations.models.Role.Name",
         "QuestionTypeNameEnum": "recruitment.models.QuestionType.Name",
+        "ApplicationStatusNameEnum": "recruitment.models.ApplicationStatus.Name",
     },
 }
 
