@@ -31,9 +31,21 @@ class OrganizationSerializer(serializers.ModelSerializer):
         ],
     )
 
+    logo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Organization
-        fields = ("id", "name", "slug", "contact_email")
+        fields = ("id", "name", "slug", "contact_email", "logo_url")
+
+    def get_logo_url(self, organization) -> str | None:
+        return organization.logo.url if organization.logo else None
+
+
+class OrganizationLogoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Organization
+        fields = ("logo",)
+        extra_kwargs = {"logo": {"required": True, "allow_null": False}}
 
 
 class EditionSerializer(serializers.ModelSerializer):
