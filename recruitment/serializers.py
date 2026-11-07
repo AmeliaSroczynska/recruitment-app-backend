@@ -186,12 +186,14 @@ class ApplicationStatusSerializer(serializers.Serializer):
 
 class AuthorSerializer(serializers.ModelSerializer):
     first_name = serializers.CharField(
-        source="membership.user.first_name", read_only=True
+        source="membership.user.first_name", read_only=True, allow_null=True
     )
     last_name = serializers.CharField(
-        source="membership.user.last_name", read_only=True
+        source="membership.user.last_name", read_only=True, allow_null=True
     )
-    email = serializers.EmailField(source="membership.user.email", read_only=True)
+    email = serializers.EmailField(
+        source="membership.user.email", read_only=True, allow_null=True
+    )
 
 
 class RatingSerializer(AuthorSerializer):
