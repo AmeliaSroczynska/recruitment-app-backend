@@ -187,14 +187,24 @@ def list_applications(edition, status=None, search=None, ordering=None):
     return applications.order_by(*order, "-id")
 
 
-def get_application_details(edition):
+def prefetch_answers():
     answers = (
         Answer.objects.select_related("question__type")
         .prefetch_related("selected_choices")
         .order_by("question__position", "question__id")
     )
-    return list_applications(edition).prefetch_related(
-        Prefetch("answers", queryset=answers)
+    return Prefetch("answers", queryset=answers)
+
+
+def get_application_details(edition):
+    return list_applications(edition).prefetch_related(prefetch_answers())
+
+
+def get_candidate_applications(user):
+    return (
+        Application.objects.filter(user=user)
+        .select_related("user", "status", "form__edition__organization")
+        .prefetch_related(prefetch_answers())
     )
 
 

@@ -152,6 +152,34 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
         fields = (*ApplicationListSerializer.Meta.fields, "accepted_at", "answers")
 
 
+class CandidateApplicationSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name")
+    last_name = serializers.CharField(source="user.last_name")
+    email = serializers.EmailField(source="user.email")
+    status = serializers.CharField(source="status.name")
+    edition_id = serializers.IntegerField(source="form.edition_id")
+    organization_name = serializers.CharField(source="form.edition.organization.name")
+    organization_email = serializers.EmailField(
+        source="form.edition.organization.contact_email"
+    )
+    answers = AnswerSerializer(many=True)
+
+    class Meta:
+        model = Application
+        fields = (
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "status",
+            "submitted_at",
+            "edition_id",
+            "organization_name",
+            "organization_email",
+            "answers",
+        )
+
+
 class ApplicationStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=ApplicationStatus.Name.choices)
 

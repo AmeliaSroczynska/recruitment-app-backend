@@ -23,6 +23,7 @@ from .serializers import (
     ApplicationDetailSerializer,
     ApplicationListSerializer,
     ApplicationStatusSerializer,
+    CandidateApplicationSerializer,
     ChoiceSerializer,
     FormSerializer,
     NoteSerializer,
@@ -40,6 +41,7 @@ from .services import (
     delete_choice,
     delete_question,
     get_application_details,
+    get_candidate_applications,
     get_or_create_form,
     list_applications,
     list_notes,
@@ -518,3 +520,22 @@ class NoteDetailView(ApplicationScopedView):
     def delete(self, request, edition_id, application_id, note_id):
         self.get_note(application_id, note_id).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CandidateApplicationView(APIView):
+    permission_classes = (IsAuthenticated,)
+
+    @extend_schema(
+        tags=["Panel kandydata"],
+        summary="Moje zgłoszenie",
+        description=(
+            "Status, odpowiedzi i kontakt do organizacji. Kandydat widzi tylko "
+            "własne zgłoszenie, bez ocen i notatek zespołu. Cudze daje 404."
+        ),
+        responses={200: CandidateApplicationSerializer},
+    )
+    def get(self, request, application_id):
+        application = get_object_or_404(
+            get_candidate_applications(request.user), pk=application_id
+        )
+        return Response(CandidateApplicationSerializer(application).data)

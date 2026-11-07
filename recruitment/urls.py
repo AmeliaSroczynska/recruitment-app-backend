@@ -4,6 +4,7 @@ from .views import (
     ApplicationCreateView,
     ApplicationDetailView,
     ApplicationListView,
+    CandidateApplicationView,
     ChoiceDetailView,
     ChoiceListView,
     FormDetailView,
@@ -62,4 +63,8 @@ application_urlpatterns = [
         "<int:edition_id>/applications/<int:application_id>/notes/<int:note_id>/",
         NoteDetailView.as_view(),
     ),
+]
+
+candidate_urlpatterns = [
+    path("<int:application_id>/", CandidateApplicationView.as_view()),
 ]

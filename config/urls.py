@@ -26,6 +26,7 @@ from organizations.urls import (
 )
 from recruitment.urls import (
     application_urlpatterns,
+    candidate_urlpatterns,
     form_urlpatterns,
     public_form_urlpatterns,
     question_type_urlpatterns,
@@ -41,6 +42,7 @@ urlpatterns = [
     path("api/roles/", include(role_urlpatterns)),
     path("api/question-types/", include(question_type_urlpatterns)),
     path("api/forms/", include(public_form_urlpatterns)),
+    path("api/me/applications/", include(candidate_urlpatterns)),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
