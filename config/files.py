@@ -46,3 +46,8 @@ def replace_file(instance, field_name, new_file):
     new_name = getattr(instance, field_name).name
     if old_name and old_name != new_name:
         old_file.storage.delete(old_name)
+
+
+def delete_files(files):
+    for file in files:
+        file.storage.delete(file.name)

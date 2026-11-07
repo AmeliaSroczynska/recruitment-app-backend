@@ -4,6 +4,7 @@ from django.utils.text import slugify
 from rest_framework.exceptions import ValidationError
 
 from accounts.services import get_or_create_user
+from config.files import delete_files
 
 from .models import Edition, Membership, Organization, Role
 
@@ -81,6 +82,14 @@ def remove_member(membership):
     membership.delete()
 
 
+def get_edition_files(edition):
+    form = getattr(edition, "form", None)
+    files = [form.header_image] if form else []
+    files += [mentor.photo for mentor in edition.mentors.all()]
+    files += [document.file for document in edition.documents.all()]
+    return [file for file in files if file]
+
+
 @transaction.atomic
 def delete_edition(edition):
     organization = edition.organization
@@ -89,7 +98,9 @@ def delete_edition(edition):
             {"detail": "Nie można usunąć jedynej edycji organizacji."}
         )
     was_active = edition.is_active
+    files = get_edition_files(edition)
     edition.delete()
+    transaction.on_commit(lambda: delete_files(files))
     if was_active:
         newest = organization.editions.order_by("-id").first()
         newest.is_active = True
