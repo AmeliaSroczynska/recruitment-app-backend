@@ -3,12 +3,20 @@ from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from drf_spectacular.utils import extend_schema, inline_serializer
 from rest_framework import serializers, status
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.files import replace_file
+
 from .emails import send_login_code
-from .serializers import LoginSerializer, MeSerializer, RequestCodeSerializer
+from .serializers import (
+    LoginSerializer,
+    MeSerializer,
+    PhotoSerializer,
+    RequestCodeSerializer,
+)
 from .services import create_login_code, verify_login_code
 
 DetailSerializer = inline_serializer("Detail", {"detail": serializers.CharField()})
@@ -81,6 +89,33 @@ class MeView(APIView):
         responses={200: MeSerializer},
     )
     def get(self, request):
+        return Response(MeSerializer(request.user).data)
+
+
+class MePhotoView(APIView):
+    parser_classes = (MultiPartParser,)
+
+    @extend_schema(
+        tags=["Logowanie"],
+        summary="Wgraj moje zdjęcie",
+        description="Plik w polu photo (jpg, png, webp, do 4 MB). Zastępuje stare zdjęcie.",
+        request={"multipart/form-data": PhotoSerializer},
+        responses={200: MeSerializer},
+    )
+    def post(self, request):
+        serializer = PhotoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        replace_file(request.user, "photo", serializer.validated_data["photo"])
+        return Response(MeSerializer(request.user).data)
+
+    @extend_schema(
+        tags=["Logowanie"],
+        summary="Usuń moje zdjęcie",
+        description="Usuwa zdjęcie, w aplikacji wracają inicjały.",
+        responses={200: MeSerializer},
+    )
+    def delete(self, request):
+        replace_file(request.user, "photo", None)
         return Response(MeSerializer(request.user).data)
 
 

@@ -71,6 +71,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
 
 
 class MeSerializer(serializers.ModelSerializer):
+    photo_url = serializers.SerializerMethodField()
     memberships = MembershipSerializer(many=True, read_only=True)
     applications = ApplicationSerializer(many=True, read_only=True)
 
@@ -81,7 +82,17 @@ class MeSerializer(serializers.ModelSerializer):
             "email",
             "first_name",
             "last_name",
-            "photo",
+            "photo_url",
             "memberships",
             "applications",
         )
+
+    def get_photo_url(self, user) -> str | None:
+        return get_file_url(user.photo)
+
+
+class PhotoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = ("photo",)
+        extra_kwargs = {"photo": {"required": True, "allow_null": False}}

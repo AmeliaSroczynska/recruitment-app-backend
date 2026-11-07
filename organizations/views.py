@@ -81,7 +81,6 @@ class OrganizationDetailView(APIView):
         return Response(serializer.data)
 
 
-
 class OrganizationLogoView(APIView):
     permission_classes = (IsAuthenticated, IsCoordinator)
     parser_classes = (MultiPartParser,)
@@ -110,6 +109,7 @@ class OrganizationLogoView(APIView):
         organization = self.edition.organization
         replace_file(organization, "logo", None)
         return Response(OrganizationSerializer(organization).data)
+
 
 class EditionListView(APIView):
     permission_classes = (IsAuthenticated, IsCoordinator)
