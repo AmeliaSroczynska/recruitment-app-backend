@@ -1,5 +1,5 @@
-from drf_spectacular.utils import extend_schema
-from rest_framework import status
+from drf_spectacular.utils import extend_schema, inline_serializer
+from rest_framework import serializers, status
 from rest_framework.generics import get_object_or_404
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -7,8 +7,10 @@ from rest_framework.views import APIView
 
 from organizations.permissions import IsRecruiter
 
+from .emails import send_application_received
 from .models import Choice, Form, FormQuestion, QuestionType
 from .serializers import (
+    ApplicationCreateSerializer,
     ChoiceSerializer,
     FormSerializer,
     PublicFormSerializer,
@@ -23,6 +25,7 @@ from .services import (
     delete_question,
     get_or_create_form,
     reorder_questions,
+    submit_application,
 )
 
 
@@ -258,3 +261,36 @@ class PublicFormView(APIView):
             Form.objects.select_related("edition__organization"), slug=slug
         )
         return Response(PublicFormSerializer(form).data)
+
+
+class ApplicationCreateView(APIView):
+    authentication_classes = ()
+    permission_classes = (AllowAny,)
+    throttle_scope = "application_submit"
+
+    @extend_schema(
+        tags=["Zgłoszenia"],
+        summary="Wyślij zgłoszenie",
+        description=(
+            "Kandydat wysyła formularz bez logowania. Konto zakłada się samo po "
+            "e-mailu, a z jednego adresu można wysłać jedno zgłoszenie. Błędy "
+            "odpowiedzi są w polu answers pod id pytania."
+        ),
+        request=ApplicationCreateSerializer,
+        responses={
+            201: inline_serializer(
+                "ApplicationCreated", {"id": serializers.IntegerField()}
+            )
+        },
+    )
+    def post(self, request, slug):
+        form = get_object_or_404(
+            Form.objects.select_related("edition__organization"), slug=slug
+        )
+        serializer = ApplicationCreateSerializer(
+            data=request.data, context={"form": form}
+        )
+        serializer.is_valid(raise_exception=True)
+        application = submit_application(form, **serializer.validated_data)
+        send_application_received(application)
+        return Response({"id": application.id}, status=status.HTTP_201_CREATED)

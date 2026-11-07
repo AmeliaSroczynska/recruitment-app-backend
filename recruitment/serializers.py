@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from .models import Choice, Form, FormQuestion, QuestionType
+from .services import prepare_answers
 
 
 class FormSerializer(serializers.ModelSerializer):
@@ -83,3 +84,19 @@ class PublicFormSerializer(serializers.ModelSerializer):
             .prefetch_related("choices")
         )
         return QuestionSerializer(questions, many=True).data
+
+
+class AnswerInputSerializer(serializers.Serializer):
+    question = serializers.IntegerField()
+    text = serializers.CharField(required=False, allow_blank=True, max_length=5000)
+    choices = serializers.ListField(child=serializers.IntegerField(), required=False)
+
+
+class ApplicationCreateSerializer(serializers.Serializer):
+    first_name = serializers.CharField(max_length=150)
+    last_name = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    answers = AnswerInputSerializer(many=True, required=False, default=list)
+
+    def validate_answers(self, answers):
+        return prepare_answers(self.context["form"], answers)
