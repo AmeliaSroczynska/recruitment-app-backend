@@ -1,6 +1,8 @@
 from django.db import models
 from django.db.models import Q
 
+from config.files import FILE_VALIDATORS, IMAGE_VALIDATORS, RandomFileName
+
 
 class Mentor(models.Model):
     edition = models.ForeignKey(
@@ -8,7 +10,12 @@ class Mentor(models.Model):
     )
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    photo = models.FileField(upload_to="mentors/", null=True, blank=True)
+    photo = models.FileField(
+        upload_to=RandomFileName("mentors"),
+        validators=IMAGE_VALIDATORS,
+        null=True,
+        blank=True,
+    )
     capacity = models.SmallIntegerField()
     section = models.TextField()
     free_time = models.TextField()
@@ -50,7 +57,10 @@ class Document(models.Model):
     )
     name = models.CharField(max_length=200)
     description = models.TextField(null=True, blank=True)
-    file = models.FileField(upload_to="documents/")
+    file = models.FileField(
+        upload_to=RandomFileName("documents"),
+        validators=FILE_VALIDATORS,
+    )
     position = models.PositiveIntegerField()
 
     class Meta:

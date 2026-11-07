@@ -1,10 +1,17 @@
 from django.db import models
 from django.db.models import Q
 
+from config.files import IMAGE_VALIDATORS, RandomFileName
+
 
 class Organization(models.Model):
     name = models.CharField(max_length=200)
-    logo = models.FileField(upload_to="logos/", null=True, blank=True)
+    logo = models.FileField(
+        upload_to=RandomFileName("logos"),
+        validators=IMAGE_VALIDATORS,
+        null=True,
+        blank=True,
+    )
     contact_email = models.EmailField()
     slug = models.SlugField(unique=True)
 
