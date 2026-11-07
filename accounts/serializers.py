@@ -21,6 +21,7 @@ class LoginSerializer(serializers.Serializer):
 class MembershipSerializer(serializers.ModelSerializer):
     edition_id = serializers.IntegerField(source="edition.id")
     edition_name = serializers.CharField(source="edition.name")
+    edition_is_active = serializers.BooleanField(source="edition.is_active")
     organization_name = serializers.CharField(source="edition.organization.name")
     organization_slug = serializers.CharField(source="edition.organization.slug")
     organization_logo_url = serializers.SerializerMethodField()
@@ -32,6 +33,7 @@ class MembershipSerializer(serializers.ModelSerializer):
             "id",
             "edition_id",
             "edition_name",
+            "edition_is_active",
             "organization_name",
             "organization_slug",
             "organization_logo_url",
@@ -45,6 +47,7 @@ class MembershipSerializer(serializers.ModelSerializer):
 class ApplicationSerializer(serializers.ModelSerializer):
     edition_id = serializers.IntegerField(source="form.edition.id")
     edition_name = serializers.CharField(source="form.edition.name")
+    edition_is_active = serializers.BooleanField(source="form.edition.is_active")
     organization_name = serializers.CharField(source="form.edition.organization.name")
     organization_slug = serializers.CharField(source="form.edition.organization.slug")
     organization_logo_url = serializers.SerializerMethodField()
@@ -56,6 +59,7 @@ class ApplicationSerializer(serializers.ModelSerializer):
             "id",
             "edition_id",
             "edition_name",
+            "edition_is_active",
             "organization_name",
             "organization_slug",
             "organization_logo_url",
