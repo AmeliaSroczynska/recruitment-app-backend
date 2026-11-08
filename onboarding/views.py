@@ -14,23 +14,32 @@ from organizations.permissions import (
 )
 from recruitment.models import Application
 
-from .models import Document, FaqQuestion, Task
+from .models import Document, FaqQuestion, Mentor, Task
 from .serializers import (
+    CandidateMentorSerializer,
     CandidateTaskSerializer,
     DocumentCreateSerializer,
     DocumentFileSerializer,
     DocumentSerializer,
     FaqQuestionSerializer,
+    MentorChoiceSerializer,
+    MentorDetailSerializer,
+    MentorPhotoSerializer,
+    MentorSerializer,
     OrderSerializer,
     TaskSerializer,
 )
 from .services import (
+    choose_mentor,
     complete_task,
     create_document,
     create_faq_question,
+    create_mentor,
     create_task,
     delete_document,
+    delete_mentor,
     get_candidate_tasks,
+    get_mentors,
     reorder,
     uncomplete_task,
 )
@@ -411,3 +420,157 @@ class CandidateDocumentListView(APIView):
                 self.application.form.edition.documents.all(), many=True
             ).data
         )
+
+
+class MentorListView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Lista mentorów",
+        description=(
+            "Mentorzy edycji z liczbą zajętych miejsc. Widzi każdy członek edycji."
+        ),
+        responses={200: MentorSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        return Response(MentorSerializer(get_mentors(self.edition), many=True).data)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Dodaj mentora",
+        description=(
+            "Wystarczy imię i nazwisko, resztę uzupełnia się w profilu. "
+            "Mentor i koordynator."
+        ),
+        request=MentorSerializer,
+        responses={201: MentorSerializer},
+    )
+    def post(self, request, edition_id):
+        serializer = MentorSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        mentor = create_mentor(self.edition, **serializer.validated_data)
+        return Response(MentorSerializer(mentor).data, status=status.HTTP_201_CREATED)
+
+
+class MentorDetailView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+
+    def get_mentor(self, mentor_id):
+        return get_object_or_404(Mentor, edition=self.edition, pk=mentor_id)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Profil mentora",
+        description=(
+            "Dane mentora i osoby, które go wybrały. Widzi każdy członek edycji."
+        ),
+        responses={200: MentorDetailSerializer},
+    )
+    def get(self, request, edition_id, mentor_id):
+        return Response(MentorDetailSerializer(self.get_mentor(mentor_id)).data)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Zmień profil mentora",
+        description=(
+            "Imię, nazwisko, liczba miejsc (1-12) i opisy. Mentor i koordynator."
+        ),
+        request=MentorSerializer,
+        responses={200: MentorDetailSerializer},
+    )
+    def patch(self, request, edition_id, mentor_id):
+        serializer = MentorSerializer(
+            self.get_mentor(mentor_id), data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        mentor = serializer.save()
+        return Response(MentorDetailSerializer(mentor).data)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Usuń mentora",
+        description=(
+            "Mentor i jego zdjęcie znikają na stałe, a jego podopieczni zostają "
+            "bez mentora. Mentor i koordynator."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, mentor_id):
+        delete_mentor(self.get_mentor(mentor_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class MentorPhotoView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+    parser_classes = (MultiPartParser,)
+
+    def get_mentor(self, mentor_id):
+        return get_object_or_404(Mentor, edition=self.edition, pk=mentor_id)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Wgraj zdjęcie mentora",
+        description=(
+            "Plik w polu photo (jpg, png, webp, do 4 MB). Zastępuje stare zdjęcie. "
+            "Mentor i koordynator."
+        ),
+        request={"multipart/form-data": MentorPhotoSerializer},
+        responses={200: MentorDetailSerializer},
+    )
+    def post(self, request, edition_id, mentor_id):
+        mentor = self.get_mentor(mentor_id)
+        serializer = MentorPhotoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        replace_file(mentor, "photo", serializer.validated_data["photo"])
+        return Response(MentorDetailSerializer(mentor).data)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Usuń zdjęcie mentora",
+        description="Usuwa zdjęcie mentora. Mentor i koordynator.",
+        responses={200: MentorDetailSerializer},
+    )
+    def delete(self, request, edition_id, mentor_id):
+        mentor = self.get_mentor(mentor_id)
+        replace_file(mentor, "photo", None)
+        return Response(MentorDetailSerializer(mentor).data)
+
+
+class CandidateMentorListView(APIView):
+    permission_classes = (IsAuthenticated, IsAcceptedCandidate)
+
+    def get_mentors_data(self):
+        return CandidateMentorSerializer(
+            get_mentors(self.application.form.edition),
+            many=True,
+            context={"application": self.application},
+        ).data
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Mentorzy do wyboru",
+        description=(
+            "Mentorzy edycji z liczbą zajętych miejsc i informacją, którego "
+            "wybrał kandydat. Tylko przyjęty kandydat."
+        ),
+        responses={200: CandidateMentorSerializer(many=True)},
+    )
+    def get(self, request, application_id):
+        return Response(self.get_mentors_data())
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Wybierz mentora",
+        description=(
+            "Wybór jest ostateczny. Odmowa, gdy kandydat ma już mentora albo "
+            "mentor nie ma wolnych miejsc. Tylko przyjęty kandydat."
+        ),
+        request=MentorChoiceSerializer,
+        responses={200: CandidateMentorSerializer(many=True)},
+    )
+    def post(self, request, application_id):
+        serializer = MentorChoiceSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        choose_mentor(self.application, serializer.validated_data["mentor_id"])
+        return Response(self.get_mentors_data())

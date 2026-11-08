@@ -4,6 +4,7 @@ from .views import (
     ApplicationTaskListView,
     CandidateDocumentListView,
     CandidateFaqListView,
+    CandidateMentorListView,
     CandidateTaskCompletionView,
     CandidateTaskListView,
     DocumentDetailView,
@@ -13,6 +14,9 @@ from .views import (
     FaqDetailView,
     FaqListView,
     FaqOrderView,
+    MentorDetailView,
+    MentorListView,
+    MentorPhotoView,
     TaskDetailView,
     TaskListView,
     TaskOrderView,
@@ -39,6 +43,12 @@ onboarding_urlpatterns = [
         "<int:edition_id>/documents/<int:document_id>/file/",
         DocumentFileView.as_view(),
     ),
+    path("<int:edition_id>/mentors/", MentorListView.as_view()),
+    path("<int:edition_id>/mentors/<int:mentor_id>/", MentorDetailView.as_view()),
+    path(
+        "<int:edition_id>/mentors/<int:mentor_id>/photo/",
+        MentorPhotoView.as_view(),
+    ),
 ]
 
 candidate_onboarding_urlpatterns = [
@@ -49,4 +59,5 @@ candidate_onboarding_urlpatterns = [
     ),
     path("<int:application_id>/faq/", CandidateFaqListView.as_view()),
     path("<int:application_id>/documents/", CandidateDocumentListView.as_view()),
+    path("<int:application_id>/mentors/", CandidateMentorListView.as_view()),
 ]

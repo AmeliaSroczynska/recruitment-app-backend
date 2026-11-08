@@ -198,7 +198,11 @@ def prefetch_answers():
 
 
 def get_application_details(edition):
-    return list_applications(edition).prefetch_related(prefetch_answers())
+    return (
+        list_applications(edition)
+        .select_related("mentor")
+        .prefetch_related(prefetch_answers())
+    )
 
 
 def get_candidate_applications(user):

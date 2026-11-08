@@ -1,13 +1,13 @@
 from pathlib import Path
 
 from django.db import transaction
-from django.db.models import Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef
 from rest_framework.exceptions import ValidationError
 
 from config.files import delete_files
 from recruitment.services import next_position
 
-from .models import Document, FaqQuestion, Task, TaskCompletion
+from .models import Document, FaqQuestion, Mentor, Task, TaskCompletion
 
 
 def create_task(edition, **data):
@@ -50,6 +50,38 @@ def delete_document(document):
     files = [document.file]
     document.delete()
     transaction.on_commit(lambda: delete_files(files))
+
+
+def get_mentors(edition):
+    return edition.mentors.annotate(taken=Count("applications")).order_by("id")
+
+
+def create_mentor(edition, **data):
+    return Mentor.objects.create(edition=edition, **data)
+
+
+@transaction.atomic
+def delete_mentor(mentor):
+    files = [mentor.photo] if mentor.photo else []
+    mentor.delete()
+    transaction.on_commit(lambda: delete_files(files))
+
+
+@transaction.atomic
+def choose_mentor(application, mentor_id):
+    mentor = (
+        Mentor.objects.select_for_update()
+        .filter(edition_id=application.form.edition_id, pk=mentor_id)
+        .first()
+    )
+    if mentor is None:
+        raise ValidationError({"mentor_id": "Nie ma takiego mentora."})
+    if application.mentor_id is not None:
+        raise ValidationError({"mentor_id": "Masz już wybranego mentora."})
+    if mentor.applications.count() >= mentor.capacity:
+        raise ValidationError({"mentor_id": "Ten mentor nie ma już wolnych miejsc."})
+    application.mentor = mentor
+    application.save(update_fields=["mentor"])
 
 
 def get_candidate_tasks(application):

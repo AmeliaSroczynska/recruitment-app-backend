@@ -208,8 +208,8 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "auth_code": "10/hour",
-        "auth_login": "30/hour",
+        "auth_code": "30/hour",
+        "auth_login": "60/hour",
         "application_submit": "20/hour",
     },
 }
