@@ -5,7 +5,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from organizations.permissions import IsAcceptedCandidate, IsMentor
+from organizations.permissions import (
+    IsAcceptedCandidate,
+    IsEditionMember,
+    IsMentor,
+)
+from recruitment.models import Application
 
 from .models import Task
 from .serializers import (
@@ -151,3 +156,24 @@ class CandidateTaskCompletionView(APIView):
     def delete(self, request, application_id, task_id):
         uncomplete_task(self.application, self.get_task(task_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ApplicationTaskListView(APIView):
+    permission_classes = (IsAuthenticated, IsEditionMember)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Postęp wdrożenia kandydata",
+        description=(
+            "Zadania edycji z informacją, które kandydat już odhaczył. "
+            "Tylko do podglądu, widzi każdy członek edycji."
+        ),
+        responses={200: CandidateTaskSerializer(many=True)},
+    )
+    def get(self, request, edition_id, application_id):
+        application = get_object_or_404(
+            Application, form__edition=self.edition, pk=application_id
+        )
+        return Response(
+            CandidateTaskSerializer(get_candidate_tasks(application), many=True).data
+        )
