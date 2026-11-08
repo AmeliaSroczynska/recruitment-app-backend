@@ -36,6 +36,7 @@ from recruitment.urls import (
     form_urlpatterns,
     public_form_urlpatterns,
     question_type_urlpatterns,
+    statistics_urlpatterns,
 )
 
 urlpatterns = [
@@ -46,6 +47,7 @@ urlpatterns = [
     path("api/editions/", include(form_urlpatterns)),
     path("api/editions/", include(application_urlpatterns)),
     path("api/editions/", include(onboarding_urlpatterns)),
+    path("api/editions/", include(statistics_urlpatterns)),
     path("api/roles/", include(role_urlpatterns)),
     path("api/question-types/", include(question_type_urlpatterns)),
     path("api/forms/", include(public_form_urlpatterns)),

@@ -16,7 +16,7 @@ from .models import (
     QuestionType,
     Rating,
 )
-from .services import get_public_questions, prepare_answers
+from .services import STATISTICS_RANGES, get_public_questions, prepare_answers
 
 
 class FormSerializer(serializers.ModelSerializer):
@@ -251,3 +251,26 @@ class NoteSerializer(AuthorSerializer):
         model = Note
         fields = ("id", "membership", "first_name", "last_name", "email", "text")
         read_only_fields = ("membership",)
+
+
+class StatisticsQuerySerializer(serializers.Serializer):
+    range = serializers.ChoiceField(choices=list(STATISTICS_RANGES), default="all")
+
+
+class StatusStatisticsSerializer(serializers.Serializer):
+    name = serializers.ChoiceField(choices=ApplicationStatus.Name.choices)
+    label = serializers.CharField()
+    count = serializers.IntegerField()
+    percent = serializers.IntegerField()
+
+
+class RecruitmentStatisticsSerializer(serializers.Serializer):
+    applications = serializers.IntegerField()
+    interviews_done = serializers.IntegerField(allow_null=True)
+    accepted = serializers.IntegerField()
+    statuses = StatusStatisticsSerializer(many=True)
+
+
+class StatisticsSerializer(serializers.Serializer):
+    range = serializers.ChoiceField(choices=list(STATISTICS_RANGES))
+    recruitment = RecruitmentStatisticsSerializer()

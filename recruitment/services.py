@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Prefetch, Q
 from django.utils import timezone
@@ -33,6 +35,8 @@ APPLICATION_ORDERINGS = {
     "rating": (F("rating_average").asc(nulls_last=True),),
     "-rating": (F("rating_average").desc(nulls_last=True),),
 }
+
+STATISTICS_RANGES = {"7": 7, "30": 30, "all": None}
 
 
 def get_or_create_form(edition):
@@ -246,3 +250,47 @@ def create_note(application, membership, text):
     return Note.objects.create(
         application=application, membership=membership, text=text
     )
+
+
+def filter_by_range(queryset, field, range_name):
+    days = STATISTICS_RANGES[range_name]
+    if days is None:
+        return queryset
+    since = timezone.now() - timedelta(days=days)
+    return queryset.filter(**{f"{field}__gte": since})
+
+
+def percent(part, total):
+    return round(part * 100 / total) if total else 0
+
+
+def get_recruitment_statistics(edition, range_name):
+    applications = filter_by_range(
+        Application.objects.filter(form__edition=edition), "submitted_at", range_name
+    )
+    counts = dict(
+        applications.order_by().values_list("status__name").annotate(Count("id"))
+    )
+    total = sum(counts.values())
+    statuses = [
+        {
+            "name": name,
+            "label": label,
+            "count": counts.get(name, 0),
+            "percent": percent(counts.get(name, 0), total),
+        }
+        for name, label in ApplicationStatus.Name.choices
+    ]
+    return {
+        "applications": total,
+        "interviews_done": None,
+        "accepted": counts.get(ApplicationStatus.Name.ACCEPTED, 0),
+        "statuses": statuses,
+    }
+
+
+def get_statistics(edition, range_name):
+    return {
+        "range": range_name,
+        "recruitment": get_recruitment_statistics(edition, range_name),
+    }

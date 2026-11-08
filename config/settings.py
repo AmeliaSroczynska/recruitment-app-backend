@@ -228,6 +228,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Oceny i notatki", "description": "Oceny i notatki zespołu"},
         {"name": "Panel kandydata", "description": "Zgłoszenie oczami kandydata"},
         {"name": "Wdrożenie", "description": "Zadania i wdrożenie przyjętych osób"},
+        {"name": "Statystyki", "description": "Wyniki rekrutacji i wdrożenia"},
     ],
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {
