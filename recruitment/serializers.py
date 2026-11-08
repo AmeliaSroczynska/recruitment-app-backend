@@ -2,6 +2,8 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
+from config.files import get_file_url
+
 from .models import (
     Answer,
     Application,
@@ -26,10 +28,28 @@ class FormSerializer(serializers.ModelSerializer):
             )
         ],
     )
+    header_image_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Form
-        fields = ("id", "title", "description", "slug", "is_accepting_responses")
+        fields = (
+            "id",
+            "title",
+            "description",
+            "slug",
+            "is_accepting_responses",
+            "header_image_url",
+        )
+
+    def get_header_image_url(self, form) -> str | None:
+        return get_file_url(form.header_image)
+
+
+class FormHeaderImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Form
+        fields = ("header_image",)
+        extra_kwargs = {"header_image": {"required": True, "allow_null": False}}
 
 
 class QuestionTypeSerializer(serializers.ModelSerializer):
@@ -72,6 +92,7 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 class PublicFormSerializer(serializers.ModelSerializer):
     organization_name = serializers.CharField(source="edition.organization.name")
+    header_image_url = serializers.SerializerMethodField()
     questions = serializers.SerializerMethodField()
 
     class Meta:
@@ -80,9 +101,13 @@ class PublicFormSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "organization_name",
+            "header_image_url",
             "is_accepting_responses",
             "questions",
         )
+
+    def get_header_image_url(self, form) -> str | None:
+        return get_file_url(form.header_image)
 
     @extend_schema_field(QuestionSerializer(many=True))
     def get_questions(self, form):
@@ -114,6 +139,7 @@ class ApplicationListSerializer(serializers.ModelSerializer):
     status = serializers.CharField(source="status.name")
     rating_average = serializers.FloatField(allow_null=True)
     rating_count = serializers.IntegerField()
+    photo_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Application
@@ -122,11 +148,15 @@ class ApplicationListSerializer(serializers.ModelSerializer):
             "first_name",
             "last_name",
             "email",
+            "photo_url",
             "status",
             "submitted_at",
             "rating_average",
             "rating_count",
         )
+
+    def get_photo_url(self, application) -> str | None:
+        return get_file_url(application.user.photo)
 
 
 class AnswerSerializer(serializers.ModelSerializer):
@@ -162,6 +192,7 @@ class CandidateApplicationSerializer(serializers.ModelSerializer):
     organization_email = serializers.EmailField(
         source="form.edition.organization.contact_email"
     )
+    organization_logo_url = serializers.SerializerMethodField()
     answers = AnswerSerializer(many=True)
 
     class Meta:
@@ -176,8 +207,12 @@ class CandidateApplicationSerializer(serializers.ModelSerializer):
             "edition_id",
             "organization_name",
             "organization_email",
+            "organization_logo_url",
             "answers",
         )
+
+    def get_organization_logo_url(self, application) -> str | None:
+        return get_file_url(application.form.edition.organization.logo)
 
 
 class ApplicationStatusSerializer(serializers.Serializer):

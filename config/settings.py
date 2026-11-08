@@ -155,6 +155,39 @@ USE_TZ = True
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 
+MEDIA_URL = "api/media/"
+MEDIA_ROOT = BASE_DIR / "media"
+
+STORAGE_BUCKET = os.getenv("DJANGO_STORAGE_BUCKET")
+
+if STORAGE_BUCKET:
+    DEFAULT_STORAGE = {
+        "BACKEND": "storages.backends.s3.S3Storage",
+        "OPTIONS": {
+            "bucket_name": STORAGE_BUCKET,
+            "endpoint_url": os.getenv("DJANGO_STORAGE_ENDPOINT_URL"),
+            "region_name": os.getenv("DJANGO_STORAGE_REGION"),
+            "access_key": os.getenv("DJANGO_STORAGE_ACCESS_KEY"),
+            "secret_key": os.getenv("DJANGO_STORAGE_SECRET_KEY"),
+            "addressing_style": "path",
+            "signature_version": "s3v4",
+            "querystring_auth": True,
+            "querystring_expire": 3600,
+            "file_overwrite": False,
+        },
+    }
+else:
+    DEFAULT_STORAGE = {
+        "BACKEND": "django.core.files.storage.FileSystemStorage",
+    }
+
+STORAGES = {
+    "default": DEFAULT_STORAGE,
+    "staticfiles": {
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+    },
+}
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 

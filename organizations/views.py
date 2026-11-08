@@ -1,9 +1,12 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.generics import get_object_or_404
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from config.files import replace_file
 
 from .models import Role
 from .permissions import IsCoordinator
@@ -13,6 +16,7 @@ from .serializers import (
     MemberCreateSerializer,
     MemberSerializer,
     OrganizationCreateSerializer,
+    OrganizationLogoSerializer,
     OrganizationSerializer,
     RoleSerializer,
 )
@@ -75,6 +79,36 @@ class OrganizationDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+
+class OrganizationLogoView(APIView):
+    permission_classes = (IsAuthenticated, IsCoordinator)
+    parser_classes = (MultiPartParser,)
+
+    @extend_schema(
+        tags=["Organizacja"],
+        summary="Wgraj logo organizacji",
+        description="Plik w polu logo (jpg, png, webp, do 4 MB). Zastępuje stare logo. Tylko koordynator.",
+        request={"multipart/form-data": OrganizationLogoSerializer},
+        responses={200: OrganizationSerializer},
+    )
+    def post(self, request, edition_id):
+        serializer = OrganizationLogoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        organization = self.edition.organization
+        replace_file(organization, "logo", serializer.validated_data["logo"])
+        return Response(OrganizationSerializer(organization).data)
+
+    @extend_schema(
+        tags=["Organizacja"],
+        summary="Usuń logo organizacji",
+        description="Usuwa logo, w aplikacji wraca pierwsza litera nazwy. Tylko koordynator.",
+        responses={200: OrganizationSerializer},
+    )
+    def delete(self, request, edition_id):
+        organization = self.edition.organization
+        replace_file(organization, "logo", None)
+        return Response(OrganizationSerializer(organization).data)
 
 
 class EditionListView(APIView):
@@ -144,6 +178,28 @@ class EditionDetailView(APIView):
     )
     def delete(self, request, edition_id):
         delete_edition(self.edition)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class OrganizationEditionDetailView(APIView):
+    permission_classes = (IsAuthenticated, IsCoordinator)
+
+    @extend_schema(
+        tags=["Edycje"],
+        summary="Usuń inną edycję organizacji",
+        description=(
+            "Koordynator edycji {edition_id} usuwa dowolną edycję tej samej "
+            "organizacji, także taką, w której nie ma roli. Zasady jak przy "
+            "usuwaniu edycji: jedynej nie da się usunąć, a po usunięciu aktywnej "
+            "aktywna staje się najnowsza."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, other_edition_id):
+        edition = get_object_or_404(
+            self.edition.organization.editions, id=other_edition_id
+        )
+        delete_edition(edition)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 

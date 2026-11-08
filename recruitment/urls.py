@@ -8,6 +8,7 @@ from .views import (
     ChoiceDetailView,
     ChoiceListView,
     FormDetailView,
+    FormHeaderImageView,
     NoteDetailView,
     NoteListView,
     PublicFormView,
@@ -20,6 +21,7 @@ from .views import (
 
 form_urlpatterns = [
     path("<int:edition_id>/form/", FormDetailView.as_view()),
+    path("<int:edition_id>/form/header-image/", FormHeaderImageView.as_view()),
     path("<int:edition_id>/form/questions/", QuestionListView.as_view()),
     path("<int:edition_id>/form/questions/order/", QuestionOrderView.as_view()),
     path(

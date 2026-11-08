@@ -5,6 +5,8 @@ from django.contrib.auth.models import (
 )
 from django.db import models
 
+from config.files import IMAGE_VALIDATORS, RandomFileName
+
 
 class UserManager(BaseUserManager):
     def create_user(self, email, password=None, **extra_fields):
@@ -28,7 +30,12 @@ class User(AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     first_name = models.CharField(max_length=150)
     last_name = models.CharField(max_length=150)
-    photo = models.FileField(upload_to="users/", null=True, blank=True)
+    photo = models.FileField(
+        upload_to=RandomFileName("users"),
+        validators=IMAGE_VALIDATORS,
+        null=True,
+        blank=True,
+    )
     is_active = models.BooleanField(default=True)
     is_staff = models.BooleanField(default=False)
 

@@ -1,6 +1,8 @@
 from django.db import models
 from django.db.models import F, Q
 
+from config.files import FILE_VALIDATORS, IMAGE_VALIDATORS, RandomFileName
+
 
 class QuestionType(models.Model):
     class Name(models.TextChoices):
@@ -64,7 +66,12 @@ class Form(models.Model):
     )
     title = models.CharField(max_length=200)
     description = models.TextField(null=True, blank=True)
-    header_image = models.FileField(upload_to="forms/", null=True, blank=True)
+    header_image = models.FileField(
+        upload_to=RandomFileName("forms"),
+        validators=IMAGE_VALIDATORS,
+        null=True,
+        blank=True,
+    )
     slug = models.SlugField(unique=True)
     is_accepting_responses = models.BooleanField(default=True)
 
@@ -153,7 +160,12 @@ class Answer(models.Model):
         FormQuestion, on_delete=models.RESTRICT, related_name="answers"
     )
     text = models.TextField(null=True, blank=True)
-    file = models.FileField(upload_to="answers/", null=True, blank=True)
+    file = models.FileField(
+        upload_to=RandomFileName("answers"),
+        validators=FILE_VALIDATORS,
+        null=True,
+        blank=True,
+    )
     selected_choices = models.ManyToManyField(
         Choice, blank=True, related_name="answers"
     )
