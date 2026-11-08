@@ -1,10 +1,12 @@
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.generics import get_object_or_404
+from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from config.files import replace_file
 from organizations.permissions import (
     IsAcceptedCandidate,
     IsEditionMember,
@@ -12,17 +14,22 @@ from organizations.permissions import (
 )
 from recruitment.models import Application
 
-from .models import FaqQuestion, Task
+from .models import Document, FaqQuestion, Task
 from .serializers import (
     CandidateTaskSerializer,
+    DocumentCreateSerializer,
+    DocumentFileSerializer,
+    DocumentSerializer,
     FaqQuestionSerializer,
     OrderSerializer,
     TaskSerializer,
 )
 from .services import (
     complete_task,
+    create_document,
     create_faq_question,
     create_task,
+    delete_document,
     get_candidate_tasks,
     reorder,
     uncomplete_task,
@@ -276,5 +283,131 @@ class CandidateFaqListView(APIView):
         return Response(
             FaqQuestionSerializer(
                 self.application.form.edition.faq_questions.all(), many=True
+            ).data
+        )
+
+
+class DocumentListView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+    parser_classes = (MultiPartParser,)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Lista dokumentów bazy wiedzy",
+        description="Dokumenty edycji w kolejności. Widzi każdy członek edycji.",
+        responses={200: DocumentSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        return Response(
+            DocumentSerializer(self.edition.documents.all(), many=True).data
+        )
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Dodaj dokument",
+        description=(
+            "Plik w polu file (pdf, docx, jpg, png, webp, do 4 MB). Bez nazwy "
+            "dokument dostaje nazwę pliku. Trafia na koniec listy. "
+            "Mentor i koordynator."
+        ),
+        request={"multipart/form-data": DocumentCreateSerializer},
+        responses={201: DocumentSerializer},
+    )
+    def post(self, request, edition_id):
+        serializer = DocumentCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        document = create_document(self.edition, **serializer.validated_data)
+        return Response(
+            DocumentSerializer(document).data, status=status.HTTP_201_CREATED
+        )
+
+
+class DocumentDetailView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+
+    def get_document(self, document_id):
+        return get_object_or_404(Document, edition=self.edition, pk=document_id)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Zmień dokument",
+        description="Nazwa i opis dokumentu. Mentor i koordynator.",
+        request=DocumentSerializer,
+        responses={200: DocumentSerializer},
+    )
+    def patch(self, request, edition_id, document_id):
+        serializer = DocumentSerializer(
+            self.get_document(document_id), data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Usuń dokument",
+        description="Dokument i jego plik znikają na stałe. Mentor i koordynator.",
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, document_id):
+        delete_document(self.get_document(document_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class DocumentFileView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+    parser_classes = (MultiPartParser,)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Zmień plik dokumentu",
+        description=(
+            "Nowy plik w polu file zastępuje stary, nazwa i opis zostają. "
+            "Mentor i koordynator."
+        ),
+        request={"multipart/form-data": DocumentFileSerializer},
+        responses={200: DocumentSerializer},
+    )
+    def post(self, request, edition_id, document_id):
+        document = get_object_or_404(Document, edition=self.edition, pk=document_id)
+        serializer = DocumentFileSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        replace_file(document, "file", serializer.validated_data["file"])
+        return Response(DocumentSerializer(document).data)
+
+
+class DocumentOrderView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Zmień kolejność dokumentów",
+        description=(
+            "Przyjmuje id wszystkich dokumentów edycji w nowej kolejności. "
+            "Mentor i koordynator."
+        ),
+        request=OrderSerializer,
+        responses={204: None},
+    )
+    def post(self, request, edition_id):
+        serializer = OrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reorder(self.edition.documents.all(), serializer.validated_data["ids"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CandidateDocumentListView(APIView):
+    permission_classes = (IsAuthenticated, IsAcceptedCandidate)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Baza wiedzy dla kandydata",
+        description="Dokumenty edycji do pobrania. Tylko przyjęty kandydat.",
+        responses={200: DocumentSerializer(many=True)},
+    )
+    def get(self, request, application_id):
+        return Response(
+            DocumentSerializer(
+                self.application.form.edition.documents.all(), many=True
             ).data
         )

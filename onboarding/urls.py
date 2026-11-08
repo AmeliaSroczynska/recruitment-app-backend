@@ -2,9 +2,14 @@ from django.urls import path
 
 from .views import (
     ApplicationTaskListView,
+    CandidateDocumentListView,
     CandidateFaqListView,
     CandidateTaskCompletionView,
     CandidateTaskListView,
+    DocumentDetailView,
+    DocumentFileView,
+    DocumentListView,
+    DocumentOrderView,
     FaqDetailView,
     FaqListView,
     FaqOrderView,
@@ -24,6 +29,16 @@ onboarding_urlpatterns = [
     path("<int:edition_id>/faq/", FaqListView.as_view()),
     path("<int:edition_id>/faq/order/", FaqOrderView.as_view()),
     path("<int:edition_id>/faq/<int:faq_id>/", FaqDetailView.as_view()),
+    path("<int:edition_id>/documents/", DocumentListView.as_view()),
+    path("<int:edition_id>/documents/order/", DocumentOrderView.as_view()),
+    path(
+        "<int:edition_id>/documents/<int:document_id>/",
+        DocumentDetailView.as_view(),
+    ),
+    path(
+        "<int:edition_id>/documents/<int:document_id>/file/",
+        DocumentFileView.as_view(),
+    ),
 ]
 
 candidate_onboarding_urlpatterns = [
@@ -33,4 +48,5 @@ candidate_onboarding_urlpatterns = [
         CandidateTaskCompletionView.as_view(),
     ),
     path("<int:application_id>/faq/", CandidateFaqListView.as_view()),
+    path("<int:application_id>/documents/", CandidateDocumentListView.as_view()),
 ]
