@@ -67,6 +67,8 @@ class IsCandidate(BasePermission):
 
 
 class IsAcceptedCandidate(IsCandidate):
+    message = "Wdrożenie otworzy się dla Ciebie po przyjęciu do organizacji."
+
     def has_permission(self, request, view):
         super().has_permission(request, view)
         return view.application.status.name == ApplicationStatus.Name.ACCEPTED

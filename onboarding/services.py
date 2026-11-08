@@ -1,9 +1,10 @@
 from django.db import transaction
+from django.db.models import Exists, OuterRef
 from rest_framework.exceptions import ValidationError
 
 from recruitment.services import next_position
 
-from .models import Task
+from .models import Task, TaskCompletion
 
 
 def create_task(edition, **data):
@@ -22,3 +23,18 @@ def reorder_tasks(edition, task_ids):
     for position, task_id in enumerate(task_ids):
         tasks[task_id].position = position
     Task.objects.bulk_update(tasks.values(), ["position"])
+
+
+def get_candidate_tasks(application):
+    completions = TaskCompletion.objects.filter(
+        application=application, task=OuterRef("pk")
+    )
+    return application.form.edition.tasks.annotate(completed=Exists(completions))
+
+
+def complete_task(application, task):
+    TaskCompletion.objects.get_or_create(application=application, task=task)
+
+
+def uncomplete_task(application, task):
+    TaskCompletion.objects.filter(application=application, task=task).delete()

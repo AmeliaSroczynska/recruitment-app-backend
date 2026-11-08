@@ -5,11 +5,21 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from organizations.permissions import IsMentor
+from organizations.permissions import IsAcceptedCandidate, IsMentor
 
 from .models import Task
-from .serializers import TaskOrderSerializer, TaskSerializer
-from .services import create_task, reorder_tasks
+from .serializers import (
+    CandidateTaskSerializer,
+    TaskOrderSerializer,
+    TaskSerializer,
+)
+from .services import (
+    complete_task,
+    create_task,
+    get_candidate_tasks,
+    reorder_tasks,
+    uncomplete_task,
+)
 
 
 class TaskListView(APIView):
@@ -90,4 +100,54 @@ class TaskOrderView(APIView):
         serializer = TaskOrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         reorder_tasks(self.edition, serializer.validated_data["ids"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CandidateTaskListView(APIView):
+    permission_classes = (IsAuthenticated, IsAcceptedCandidate)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Moje zadania wdrażające",
+        description=(
+            "Zadania edycji z informacją, które kandydat już odhaczył. "
+            "Tylko przyjęty kandydat, inaczej 403."
+        ),
+        responses={200: CandidateTaskSerializer(many=True)},
+    )
+    def get(self, request, application_id):
+        return Response(
+            CandidateTaskSerializer(
+                get_candidate_tasks(self.application), many=True
+            ).data
+        )
+
+
+class CandidateTaskCompletionView(APIView):
+    permission_classes = (IsAuthenticated, IsAcceptedCandidate)
+
+    def get_task(self, task_id):
+        return get_object_or_404(
+            Task, edition_id=self.application.form.edition_id, pk=task_id
+        )
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Odhacz zadanie",
+        description="Oznacza zadanie jako zrobione. Tylko przyjęty kandydat.",
+        request=None,
+        responses={204: None},
+    )
+    def put(self, request, application_id, task_id):
+        complete_task(self.application, self.get_task(task_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Cofnij odhaczenie",
+        description="Oznacza zadanie jako niezrobione. Tylko przyjęty kandydat.",
+        responses={204: None},
+    )
+    def delete(self, request, application_id, task_id):
+        uncomplete_task(self.application, self.get_task(task_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
