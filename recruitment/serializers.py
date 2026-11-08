@@ -2,7 +2,7 @@ from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from config.files import get_file_url
+from config.files import IMAGE_VALIDATORS, get_file_url
 
 from .models import (
     Answer,
@@ -45,11 +45,8 @@ class FormSerializer(serializers.ModelSerializer):
         return get_file_url(form.header_image)
 
 
-class FormHeaderImageSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Form
-        fields = ("header_image",)
-        extra_kwargs = {"header_image": {"required": True, "allow_null": False}}
+class FormHeaderImageSerializer(serializers.Serializer):
+    header_image = serializers.FileField(validators=IMAGE_VALIDATORS)
 
 
 class QuestionTypeSerializer(serializers.ModelSerializer):

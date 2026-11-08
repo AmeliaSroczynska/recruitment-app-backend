@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
-from config.files import get_file_url
+from config.files import IMAGE_VALIDATORS, get_file_url
 
 from .models import Edition, Membership, Organization, Role
 
@@ -43,11 +43,8 @@ class OrganizationSerializer(serializers.ModelSerializer):
         return get_file_url(organization.logo)
 
 
-class OrganizationLogoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Organization
-        fields = ("logo",)
-        extra_kwargs = {"logo": {"required": True, "allow_null": False}}
+class OrganizationLogoSerializer(serializers.Serializer):
+    logo = serializers.FileField(validators=IMAGE_VALIDATORS)
 
 
 class EditionSerializer(serializers.ModelSerializer):
