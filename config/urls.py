@@ -21,6 +21,10 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from onboarding.urls import (
+    candidate_onboarding_urlpatterns,
+    onboarding_urlpatterns,
+)
 from organizations.urls import (
     edition_urlpatterns,
     organization_urlpatterns,
@@ -41,10 +45,12 @@ urlpatterns = [
     path("api/editions/", include(edition_urlpatterns)),
     path("api/editions/", include(form_urlpatterns)),
     path("api/editions/", include(application_urlpatterns)),
+    path("api/editions/", include(onboarding_urlpatterns)),
     path("api/roles/", include(role_urlpatterns)),
     path("api/question-types/", include(question_type_urlpatterns)),
     path("api/forms/", include(public_form_urlpatterns)),
     path("api/me/applications/", include(candidate_urlpatterns)),
+    path("api/me/applications/", include(candidate_onboarding_urlpatterns)),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",

@@ -6,6 +6,7 @@ from rest_framework.exceptions import ValidationError
 from accounts.services import get_or_create_user
 from organizations.services import generate_slug
 
+from .emails import send_application_accepted
 from .models import (
     Answer,
     Application,
@@ -197,7 +198,11 @@ def prefetch_answers():
 
 
 def get_application_details(edition):
-    return list_applications(edition).prefetch_related(prefetch_answers())
+    return (
+        list_applications(edition)
+        .select_related("mentor")
+        .prefetch_related(prefetch_answers())
+    )
 
 
 def get_candidate_applications(user):
@@ -209,12 +214,18 @@ def get_candidate_applications(user):
 
 
 def change_status(application, status_name):
+    is_new_acceptance = (
+        status_name == ApplicationStatus.Name.ACCEPTED
+        and application.accepted_at is None
+    )
     application.status = ApplicationStatus.objects.get(name=status_name)
     if status_name != ApplicationStatus.Name.ACCEPTED:
         application.accepted_at = None
     elif application.accepted_at is None:
         application.accepted_at = timezone.now()
     application.save(update_fields=["status", "accepted_at"])
+    if is_new_acceptance:
+        send_application_accepted(application)
 
 
 def list_ratings(application):

@@ -208,8 +208,8 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.ScopedRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "auth_code": "10/hour",
-        "auth_login": "30/hour",
+        "auth_code": "30/hour",
+        "auth_login": "60/hour",
         "application_submit": "20/hour",
     },
 }
@@ -227,6 +227,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Zgłoszenia", "description": "Zgłoszenia kandydatów"},
         {"name": "Oceny i notatki", "description": "Oceny i notatki zespołu"},
         {"name": "Panel kandydata", "description": "Zgłoszenie oczami kandydata"},
+        {"name": "Wdrożenie", "description": "Zadania i wdrożenie przyjętych osób"},
     ],
     "SERVE_INCLUDE_SCHEMA": False,
     "ENUM_NAME_OVERRIDES": {

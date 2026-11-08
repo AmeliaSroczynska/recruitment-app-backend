@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
 
 from config.files import IMAGE_VALIDATORS, get_file_url
+from onboarding.serializers import MentorSummarySerializer
 
 from .models import (
     Answer,
@@ -174,9 +175,15 @@ class AnswerSerializer(serializers.ModelSerializer):
 
 class ApplicationDetailSerializer(ApplicationListSerializer):
     answers = AnswerSerializer(many=True)
+    mentor = MentorSummarySerializer(allow_null=True)
 
     class Meta(ApplicationListSerializer.Meta):
-        fields = (*ApplicationListSerializer.Meta.fields, "accepted_at", "answers")
+        fields = (
+            *ApplicationListSerializer.Meta.fields,
+            "accepted_at",
+            "answers",
+            "mentor",
+        )
 
 
 class CandidateApplicationSerializer(serializers.ModelSerializer):
