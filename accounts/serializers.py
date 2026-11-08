@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from config.files import get_file_url
+from config.files import IMAGE_VALIDATORS, get_file_url
 from organizations.models import Membership
 from recruitment.models import Application
 
@@ -91,8 +91,5 @@ class MeSerializer(serializers.ModelSerializer):
         return get_file_url(user.photo)
 
 
-class PhotoSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = User
-        fields = ("photo",)
-        extra_kwargs = {"photo": {"required": True, "allow_null": False}}
+class PhotoSerializer(serializers.Serializer):
+    photo = serializers.FileField(validators=IMAGE_VALIDATORS)
