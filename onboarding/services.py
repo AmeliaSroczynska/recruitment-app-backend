@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 
 from recruitment.services import next_position
 
-from .models import Task, TaskCompletion
+from .models import FaqQuestion, Task, TaskCompletion
 
 
 def create_task(edition, **data):
@@ -14,15 +14,21 @@ def create_task(edition, **data):
 
 
 @transaction.atomic
-def reorder_tasks(edition, task_ids):
-    tasks = {task.id: task for task in edition.tasks.all()}
-    if sorted(task_ids) != sorted(tasks):
+def reorder(queryset, ids):
+    items = {item.id: item for item in queryset}
+    if sorted(ids) != sorted(items):
         raise ValidationError(
-            {"ids": "Lista musi zawierać każde zadanie dokładnie raz."}
+            {"ids": "Lista musi zawierać każdy element dokładnie raz."}
         )
-    for position, task_id in enumerate(task_ids):
-        tasks[task_id].position = position
-    Task.objects.bulk_update(tasks.values(), ["position"])
+    for position, item_id in enumerate(ids):
+        items[item_id].position = position
+    queryset.model.objects.bulk_update(items.values(), ["position"])
+
+
+def create_faq_question(edition, **data):
+    return FaqQuestion.objects.create(
+        edition=edition, position=next_position(edition.faq_questions), **data
+    )
 
 
 def get_candidate_tasks(application):

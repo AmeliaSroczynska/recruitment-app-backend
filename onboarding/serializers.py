@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from .models import Task
+from .models import FaqQuestion, Task
 
 
 class TaskSerializer(serializers.ModelSerializer):
@@ -18,5 +18,13 @@ class CandidateTaskSerializer(serializers.ModelSerializer):
         fields = ("id", "name", "description", "completed")
 
 
-class TaskOrderSerializer(serializers.Serializer):
+class FaqQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = FaqQuestion
+        fields = ("id", "question", "answer", "position")
+        read_only_fields = ("position",)
+        extra_kwargs = {"answer": {"allow_blank": True, "default": ""}}
+
+
+class OrderSerializer(serializers.Serializer):
     ids = serializers.ListField(child=serializers.IntegerField())

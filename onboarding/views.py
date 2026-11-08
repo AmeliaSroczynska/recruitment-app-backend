@@ -12,17 +12,19 @@ from organizations.permissions import (
 )
 from recruitment.models import Application
 
-from .models import Task
+from .models import FaqQuestion, Task
 from .serializers import (
     CandidateTaskSerializer,
-    TaskOrderSerializer,
+    FaqQuestionSerializer,
+    OrderSerializer,
     TaskSerializer,
 )
 from .services import (
     complete_task,
+    create_faq_question,
     create_task,
     get_candidate_tasks,
-    reorder_tasks,
+    reorder,
     uncomplete_task,
 )
 
@@ -98,13 +100,13 @@ class TaskOrderView(APIView):
             "Przyjmuje id wszystkich zadań edycji w nowej kolejności. "
             "Mentor i koordynator."
         ),
-        request=TaskOrderSerializer,
+        request=OrderSerializer,
         responses={204: None},
     )
     def post(self, request, edition_id):
-        serializer = TaskOrderSerializer(data=request.data)
+        serializer = OrderSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        reorder_tasks(self.edition, serializer.validated_data["ids"])
+        reorder(self.edition.tasks.all(), serializer.validated_data["ids"])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -176,4 +178,103 @@ class ApplicationTaskListView(APIView):
         )
         return Response(
             CandidateTaskSerializer(get_candidate_tasks(application), many=True).data
+        )
+
+
+class FaqListView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Lista pytań FAQ",
+        description="Pytania i odpowiedzi edycji w kolejności. Widzi każdy członek.",
+        responses={200: FaqQuestionSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        return Response(
+            FaqQuestionSerializer(self.edition.faq_questions.all(), many=True).data
+        )
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Dodaj pytanie FAQ",
+        description="Nowe pytanie trafia na koniec listy. Mentor i koordynator.",
+        request=FaqQuestionSerializer,
+        responses={201: FaqQuestionSerializer},
+    )
+    def post(self, request, edition_id):
+        serializer = FaqQuestionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        faq_question = create_faq_question(self.edition, **serializer.validated_data)
+        return Response(
+            FaqQuestionSerializer(faq_question).data, status=status.HTTP_201_CREATED
+        )
+
+
+class FaqDetailView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+
+    def get_faq_question(self, faq_id):
+        return get_object_or_404(FaqQuestion, edition=self.edition, pk=faq_id)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Zmień pytanie FAQ",
+        description="Treść pytania i odpowiedź. Mentor i koordynator.",
+        request=FaqQuestionSerializer,
+        responses={200: FaqQuestionSerializer},
+    )
+    def patch(self, request, edition_id, faq_id):
+        serializer = FaqQuestionSerializer(
+            self.get_faq_question(faq_id), data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Usuń pytanie FAQ",
+        description="Pytanie znika na stałe. Mentor i koordynator.",
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, faq_id):
+        self.get_faq_question(faq_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FaqOrderView(APIView):
+    permission_classes = (IsAuthenticated, IsMentor)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="Zmień kolejność pytań FAQ",
+        description=(
+            "Przyjmuje id wszystkich pytań FAQ w nowej kolejności. "
+            "Mentor i koordynator."
+        ),
+        request=OrderSerializer,
+        responses={204: None},
+    )
+    def post(self, request, edition_id):
+        serializer = OrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        reorder(self.edition.faq_questions.all(), serializer.validated_data["ids"])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CandidateFaqListView(APIView):
+    permission_classes = (IsAuthenticated, IsAcceptedCandidate)
+
+    @extend_schema(
+        tags=["Wdrożenie"],
+        summary="FAQ dla kandydata",
+        description="Pytania i odpowiedzi edycji. Tylko przyjęty kandydat.",
+        responses={200: FaqQuestionSerializer(many=True)},
+    )
+    def get(self, request, application_id):
+        return Response(
+            FaqQuestionSerializer(
+                self.application.form.edition.faq_questions.all(), many=True
+            ).data
         )
