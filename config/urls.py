@@ -21,6 +21,7 @@ from django.contrib import admin
 from django.urls import include, path
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+from onboarding.urls import task_urlpatterns
 from organizations.urls import (
     edition_urlpatterns,
     organization_urlpatterns,
@@ -41,6 +42,7 @@ urlpatterns = [
     path("api/editions/", include(edition_urlpatterns)),
     path("api/editions/", include(form_urlpatterns)),
     path("api/editions/", include(application_urlpatterns)),
+    path("api/editions/", include(task_urlpatterns)),
     path("api/roles/", include(role_urlpatterns)),
     path("api/question-types/", include(question_type_urlpatterns)),
     path("api/forms/", include(public_form_urlpatterns)),
