@@ -277,11 +277,27 @@ class TaskStatisticsSerializer(serializers.Serializer):
     percent = serializers.IntegerField(allow_null=True)
 
 
+class RankingEntrySerializer(serializers.Serializer):
+    application_id = serializers.IntegerField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    email = serializers.EmailField()
+    photo_url = serializers.SerializerMethodField()
+    days = serializers.IntegerField()
+    completed = serializers.IntegerField()
+    total = serializers.IntegerField()
+    percent = serializers.IntegerField(allow_null=True)
+
+    def get_photo_url(self, entry) -> str | None:
+        return get_file_url(entry["photo"])
+
+
 class OnboardingStatisticsSerializer(serializers.Serializer):
     people = serializers.IntegerField()
     tasks_completed_percent = serializers.IntegerField(allow_null=True)
     average_days = serializers.IntegerField(allow_null=True)
     tasks = TaskStatisticsSerializer(many=True)
+    ranking = RankingEntrySerializer(many=True)
 
 
 class StatisticsSerializer(serializers.Serializer):

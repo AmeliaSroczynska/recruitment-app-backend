@@ -297,7 +297,8 @@ def get_onboarding_people(edition, range_name):
         accepted_at__isnull=False,
     )
     edition_completions = Q(task_completions__task__edition=edition)
-    return filter_by_range(accepted, "accepted_at", range_name).annotate(
+    people = filter_by_range(accepted, "accepted_at", range_name)
+    return people.select_related("user").annotate(
         completed=Count("task_completions", filter=edition_completions),
         last_completed_at=Max(
             "task_completions__completed_at", filter=edition_completions
@@ -309,6 +310,32 @@ def get_onboarding_days(person, task_count, now):
     finished = task_count > 0 and person.completed >= task_count
     end = person.last_completed_at if finished else now
     return max((end - person.accepted_at).days, 0)
+
+
+def get_onboarding_ranking(people, days, task_count):
+    ranking = [
+        {
+            "application_id": person.id,
+            "first_name": person.user.first_name,
+            "last_name": person.user.last_name,
+            "email": person.user.email,
+            "photo": person.user.photo,
+            "days": person_days,
+            "completed": person.completed,
+            "total": task_count,
+            "percent": percent(person.completed, task_count) if task_count else None,
+        }
+        for person, person_days in zip(people, days, strict=True)
+    ]
+    return sorted(
+        ranking,
+        key=lambda entry: (
+            -(entry["percent"] or 0),
+            entry["days"],
+            entry["last_name"],
+            entry["first_name"],
+        ),
+    )
 
 
 def get_onboarding_statistics(edition, range_name):
@@ -340,6 +367,7 @@ def get_onboarding_statistics(edition, range_name):
             }
             for task in tasks
         ],
+        "ranking": get_onboarding_ranking(people, days, task_count),
     }
 
 
