@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from accounts.services import get_or_create_user
+from onboarding.models import Task
 from organizations.services import generate_slug
 
 from .emails import send_application_accepted
@@ -289,8 +290,62 @@ def get_recruitment_statistics(edition, range_name):
     }
 
 
+def get_onboarding_people(edition, range_name):
+    accepted = Application.objects.filter(
+        form__edition=edition,
+        status__name=ApplicationStatus.Name.ACCEPTED,
+        accepted_at__isnull=False,
+    )
+    edition_completions = Q(task_completions__task__edition=edition)
+    return filter_by_range(accepted, "accepted_at", range_name).annotate(
+        completed=Count("task_completions", filter=edition_completions),
+        last_completed_at=Max(
+            "task_completions__completed_at", filter=edition_completions
+        ),
+    )
+
+
+def get_onboarding_days(person, task_count, now):
+    finished = task_count > 0 and person.completed >= task_count
+    end = person.last_completed_at if finished else now
+    return max((end - person.accepted_at).days, 0)
+
+
+def get_onboarding_statistics(edition, range_name):
+    people = list(get_onboarding_people(edition, range_name))
+    people_ids = [person.id for person in people]
+    tasks = Task.objects.filter(edition=edition).annotate(
+        completed=Count(
+            "completions", filter=Q(completions__application_id__in=people_ids)
+        )
+    )
+    task_count = len(tasks)
+    now = timezone.now()
+    days = [get_onboarding_days(person, task_count, now) for person in people]
+    completed = sum(person.completed for person in people)
+    has_people = bool(people)
+    return {
+        "people": len(people),
+        "tasks_completed_percent": (
+            percent(completed, len(people) * task_count)
+            if has_people and task_count
+            else None
+        ),
+        "average_days": round(sum(days) / len(days)) if has_people else None,
+        "tasks": [
+            {
+                "id": task.id,
+                "name": task.name,
+                "percent": percent(task.completed, len(people)) if has_people else None,
+            }
+            for task in tasks
+        ],
+    }
+
+
 def get_statistics(edition, range_name):
     return {
         "range": range_name,
         "recruitment": get_recruitment_statistics(edition, range_name),
+        "onboarding": get_onboarding_statistics(edition, range_name),
     }

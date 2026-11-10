@@ -587,9 +587,11 @@ class StatisticsView(APIView):
         tags=["Statystyki"],
         summary="Statystyki edycji",
         description=(
-            "Wyniki rekrutacji z ostatnich 7 dni, 30 dni albo całej edycji "
-            "(domyślnie cała edycja). Widzi każdy członek edycji, także obserwator. "
-            "Rozmowy odbyte są puste, dopóki nie ma modułu rozmów."
+            "Wyniki rekrutacji i wdrożenia z ostatnich 7 dni, 30 dni albo całej "
+            "edycji (domyślnie cała edycja). Rekrutacja liczy zgłoszenia wysłane "
+            "w tym okresie, wdrożenie - osoby przyjęte w tym okresie. Widzi każdy "
+            "członek edycji, także obserwator. Rozmowy odbyte są puste, dopóki "
+            "nie ma modułu rozmów."
         ),
         parameters=[StatisticsQuerySerializer],
         responses={200: StatisticsSerializer},

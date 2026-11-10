@@ -271,6 +271,20 @@ class RecruitmentStatisticsSerializer(serializers.Serializer):
     statuses = StatusStatisticsSerializer(many=True)
 
 
+class TaskStatisticsSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    percent = serializers.IntegerField(allow_null=True)
+
+
+class OnboardingStatisticsSerializer(serializers.Serializer):
+    people = serializers.IntegerField()
+    tasks_completed_percent = serializers.IntegerField(allow_null=True)
+    average_days = serializers.IntegerField(allow_null=True)
+    tasks = TaskStatisticsSerializer(many=True)
+
+
 class StatisticsSerializer(serializers.Serializer):
     range = serializers.ChoiceField(choices=list(STATISTICS_RANGES))
     recruitment = RecruitmentStatisticsSerializer()
+    onboarding = OnboardingStatisticsSerializer()
