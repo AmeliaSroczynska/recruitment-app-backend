@@ -16,7 +16,7 @@ from .models import (
     QuestionType,
     Rating,
 )
-from .services import get_public_questions, prepare_answers
+from .services import STATISTICS_RANGES, get_public_questions, prepare_answers
 
 
 class FormSerializer(serializers.ModelSerializer):
@@ -251,3 +251,56 @@ class NoteSerializer(AuthorSerializer):
         model = Note
         fields = ("id", "membership", "first_name", "last_name", "email", "text")
         read_only_fields = ("membership",)
+
+
+class StatisticsQuerySerializer(serializers.Serializer):
+    range = serializers.ChoiceField(choices=list(STATISTICS_RANGES), default="all")
+
+
+class StatusStatisticsSerializer(serializers.Serializer):
+    name = serializers.ChoiceField(choices=ApplicationStatus.Name.choices)
+    label = serializers.CharField()
+    count = serializers.IntegerField()
+    percent = serializers.IntegerField()
+
+
+class RecruitmentStatisticsSerializer(serializers.Serializer):
+    applications = serializers.IntegerField()
+    interviews_done = serializers.IntegerField(allow_null=True)
+    accepted = serializers.IntegerField()
+    statuses = StatusStatisticsSerializer(many=True)
+
+
+class TaskStatisticsSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    name = serializers.CharField()
+    percent = serializers.IntegerField(allow_null=True)
+
+
+class RankingEntrySerializer(serializers.Serializer):
+    application_id = serializers.IntegerField()
+    first_name = serializers.CharField()
+    last_name = serializers.CharField()
+    email = serializers.EmailField()
+    photo_url = serializers.SerializerMethodField()
+    days = serializers.IntegerField()
+    completed = serializers.IntegerField()
+    total = serializers.IntegerField()
+    percent = serializers.IntegerField(allow_null=True)
+
+    def get_photo_url(self, entry) -> str | None:
+        return get_file_url(entry["photo"])
+
+
+class OnboardingStatisticsSerializer(serializers.Serializer):
+    people = serializers.IntegerField()
+    tasks_completed_percent = serializers.IntegerField(allow_null=True)
+    average_days = serializers.IntegerField(allow_null=True)
+    tasks = TaskStatisticsSerializer(many=True)
+    ranking = RankingEntrySerializer(many=True)
+
+
+class StatisticsSerializer(serializers.Serializer):
+    range = serializers.ChoiceField(choices=list(STATISTICS_RANGES))
+    recruitment = RecruitmentStatisticsSerializer()
+    onboarding = OnboardingStatisticsSerializer()

@@ -17,6 +17,7 @@ from .views import (
     QuestionOrderView,
     QuestionTypeListView,
     RatingListView,
+    StatisticsView,
 )
 
 form_urlpatterns = [
@@ -69,4 +70,8 @@ application_urlpatterns = [
 
 candidate_urlpatterns = [
     path("<int:application_id>/", CandidateApplicationView.as_view()),
+]
+
+statistics_urlpatterns = [
+    path("<int:edition_id>/statistics/", StatisticsView.as_view()),
 ]

@@ -24,11 +24,12 @@ class CandidateTaskSerializer(serializers.ModelSerializer):
 
 
 class FaqQuestionSerializer(serializers.ModelSerializer):
+    answer = serializers.CharField(allow_blank=True, default="")
+
     class Meta:
         model = FaqQuestion
         fields = ("id", "question", "answer", "position")
         read_only_fields = ("position",)
-        extra_kwargs = {"answer": {"allow_blank": True, "default": ""}}
 
 
 class DocumentSerializer(serializers.ModelSerializer):
@@ -69,6 +70,10 @@ class MentorSummarySerializer(serializers.ModelSerializer):
 
 class MentorSerializer(MentorSummarySerializer):
     taken = serializers.SerializerMethodField()
+    capacity = serializers.IntegerField(min_value=1, max_value=12, default=1)
+    section = serializers.CharField(allow_blank=True, default="")
+    free_time = serializers.CharField(allow_blank=True, default="")
+    how_can_help = serializers.CharField(allow_blank=True, default="")
 
     class Meta(MentorSummarySerializer.Meta):
         fields = (
@@ -79,12 +84,6 @@ class MentorSerializer(MentorSummarySerializer):
             "free_time",
             "how_can_help",
         )
-        extra_kwargs = {
-            "capacity": {"min_value": 1, "max_value": 12, "default": 1},
-            "section": {"allow_blank": True, "default": ""},
-            "free_time": {"allow_blank": True, "default": ""},
-            "how_can_help": {"allow_blank": True, "default": ""},
-        }
 
     def get_taken(self, mentor) -> int:
         if hasattr(mentor, "taken"):

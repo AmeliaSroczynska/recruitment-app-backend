@@ -35,6 +35,8 @@ from .serializers import (
     QuestionSerializer,
     QuestionTypeSerializer,
     RatingSerializer,
+    StatisticsQuerySerializer,
+    StatisticsSerializer,
 )
 from .services import (
     change_status,
@@ -46,6 +48,7 @@ from .services import (
     get_application_details,
     get_candidate_applications,
     get_or_create_form,
+    get_statistics,
     list_applications,
     list_notes,
     list_ratings,
@@ -575,3 +578,26 @@ class CandidateApplicationView(APIView):
             get_candidate_applications(request.user), pk=application_id
         )
         return Response(CandidateApplicationSerializer(application).data)
+
+
+class StatisticsView(APIView):
+    permission_classes = (IsAuthenticated, IsEditionMember)
+
+    @extend_schema(
+        tags=["Statystyki"],
+        summary="Statystyki edycji",
+        description=(
+            "Wyniki rekrutacji i wdrożenia z ostatnich 7 dni, 30 dni albo całej "
+            "edycji (domyślnie cała edycja). Rekrutacja liczy zgłoszenia wysłane "
+            "w tym okresie, wdrożenie - osoby przyjęte w tym okresie. Widzi każdy "
+            "członek edycji, także obserwator. Rozmowy odbyte są puste, dopóki "
+            "nie ma modułu rozmów."
+        ),
+        parameters=[StatisticsQuerySerializer],
+        responses={200: StatisticsSerializer},
+    )
+    def get(self, request, edition_id):
+        query = StatisticsQuerySerializer(data=request.query_params)
+        query.is_valid(raise_exception=True)
+        statistics = get_statistics(self.edition, query.validated_data["range"])
+        return Response(StatisticsSerializer(statistics).data)
