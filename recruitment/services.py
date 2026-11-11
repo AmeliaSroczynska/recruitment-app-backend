@@ -177,6 +177,16 @@ def submit_application(form, first_name, last_name, email, answers):
     return application
 
 
+def search_by_person(queryset, search, prefix):
+    for word in (search or "").split():
+        queryset = queryset.filter(
+            Q(**{f"{prefix}__first_name__icontains": word})
+            | Q(**{f"{prefix}__last_name__icontains": word})
+            | Q(**{f"{prefix}__email__icontains": word})
+        )
+    return queryset
+
+
 def list_applications(edition, status=None, search=None, ordering=None):
     applications = (
         Application.objects.filter(form__edition=edition)
@@ -185,12 +195,7 @@ def list_applications(edition, status=None, search=None, ordering=None):
     )
     if status:
         applications = applications.filter(status__name=status)
-    for word in (search or "").split():
-        applications = applications.filter(
-            Q(user__first_name__icontains=word)
-            | Q(user__last_name__icontains=word)
-            | Q(user__email__icontains=word)
-        )
+    applications = search_by_person(applications, search, "user")
     order = APPLICATION_ORDERINGS.get(ordering, APPLICATION_ORDERINGS["submitted_at"])
     return applications.order_by(*order, "-id")
 
@@ -476,3 +481,15 @@ def save_interview_answer(interview, question, data):
         "note": answer.note,
         "score": answer.score,
     }
+
+
+def list_edition_interviews(edition, search=None):
+    interviews = (
+        Interview.objects.filter(application__form__edition=edition)
+        .select_related("template", "application__user")
+        .prefetch_related("interviewers__user")
+    )
+    interviews = search_by_person(interviews, search, "application__user")
+    return interviews.order_by(
+        F("date").desc(nulls_last=True), F("start_time").desc(nulls_last=True), "-id"
+    )

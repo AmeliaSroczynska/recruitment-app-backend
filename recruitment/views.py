@@ -30,6 +30,7 @@ from .serializers import (
     ApplicationStatusSerializer,
     CandidateApplicationSerializer,
     ChoiceSerializer,
+    EditionInterviewSerializer,
     FormHeaderImageSerializer,
     FormSerializer,
     InterviewAnswerSerializer,
@@ -65,6 +66,7 @@ from .services import (
     get_or_create_form,
     get_statistics,
     list_applications,
+    list_edition_interviews,
     list_notes,
     list_ratings,
     rate_application,
@@ -922,3 +924,24 @@ class InterviewAnswerDetailView(InterviewScopedView):
         serializer.is_valid(raise_exception=True)
         row = save_interview_answer(interview, question, serializer.validated_data)
         return Response(InterviewAnswerSerializer(row).data)
+
+
+class EditionInterviewListView(APIView):
+    permission_classes = (IsAuthenticated, IsEditionMember)
+
+    @extend_schema(
+        tags=["Rozmowy"],
+        summary="Wszystkie rozmowy w edycji",
+        description=(
+            "Rozmowy ze wszystkimi kandydatami tej edycji, od najpóźniejszego "
+            "terminu, a na końcu te bez terminu. Szukanie działa po imieniu, "
+            "nazwisku i e-mailu kandydata. Widzi każdy członek edycji."
+        ),
+        parameters=[OpenApiParameter("search", str)],
+        responses={200: EditionInterviewSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        interviews = list_edition_interviews(
+            self.edition, request.query_params.get("search")
+        )
+        return Response(EditionInterviewSerializer(interviews, many=True).data)

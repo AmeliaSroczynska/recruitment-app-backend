@@ -7,6 +7,7 @@ from .views import (
     CandidateApplicationView,
     ChoiceDetailView,
     ChoiceListView,
+    EditionInterviewListView,
     FormDetailView,
     FormHeaderImageView,
     InterviewAnswerDetailView,
@@ -111,6 +112,7 @@ statistics_urlpatterns = [
 ]
 
 interview_template_urlpatterns = [
+    path("<int:edition_id>/interviews/", EditionInterviewListView.as_view()),
     path("<int:edition_id>/interview-templates/", InterviewTemplateListView.as_view()),
     path(
         "<int:edition_id>/interview-templates/<int:template_id>/",

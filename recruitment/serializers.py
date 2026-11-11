@@ -370,6 +370,27 @@ class InterviewSerializer(serializers.ModelSerializer):
         )
 
 
+class EditionInterviewSerializer(InterviewSerializer):
+    application_id = serializers.IntegerField(source="application.id")
+    first_name = serializers.CharField(source="application.user.first_name")
+    last_name = serializers.CharField(source="application.user.last_name")
+    email = serializers.EmailField(source="application.user.email")
+    photo_url = serializers.SerializerMethodField()
+
+    class Meta(InterviewSerializer.Meta):
+        fields = (
+            *InterviewSerializer.Meta.fields,
+            "application_id",
+            "first_name",
+            "last_name",
+            "email",
+            "photo_url",
+        )
+
+    def get_photo_url(self, interview) -> str | None:
+        return get_file_url(interview.application.user.photo)
+
+
 class InterviewCreateSerializer(serializers.Serializer):
     template_id = serializers.IntegerField()
 
