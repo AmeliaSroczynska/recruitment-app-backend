@@ -4,6 +4,7 @@ from rest_framework.validators import UniqueValidator
 
 from config.files import IMAGE_VALIDATORS, get_file_url
 from onboarding.serializers import MentorSummarySerializer
+from organizations.models import Membership
 
 from .models import (
     Answer,
@@ -12,6 +13,7 @@ from .models import (
     Choice,
     Form,
     FormQuestion,
+    Interview,
     InterviewQuestion,
     InterviewTemplate,
     Note,
@@ -334,3 +336,43 @@ class InterviewTemplateDetailSerializer(serializers.ModelSerializer):
     def get_questions(self, template):
         questions = template.questions.filter(is_deleted=False)
         return InterviewQuestionSerializer(questions, many=True).data
+
+
+class InterviewerSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name")
+    last_name = serializers.CharField(source="user.last_name")
+    email = serializers.EmailField(source="user.email")
+    photo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Membership
+        fields = ("id", "first_name", "last_name", "email", "photo_url")
+
+    def get_photo_url(self, membership) -> str | None:
+        return get_file_url(membership.user.photo)
+
+
+class InterviewSerializer(serializers.ModelSerializer):
+    template_id = serializers.IntegerField(source="template.id")
+    template_name = serializers.CharField(source="template.name")
+    interviewers = InterviewerSerializer(many=True)
+
+    class Meta:
+        model = Interview
+        fields = (
+            "id",
+            "template_id",
+            "template_name",
+            "date",
+            "start_time",
+            "end_time",
+            "interviewers",
+        )
+
+
+class InterviewCreateSerializer(serializers.Serializer):
+    template_id = serializers.IntegerField()
+
+
+class InterviewersSerializer(serializers.Serializer):
+    membership_ids = serializers.ListField(child=serializers.IntegerField())

@@ -32,7 +32,10 @@ from .serializers import (
     ChoiceSerializer,
     FormHeaderImageSerializer,
     FormSerializer,
+    InterviewCreateSerializer,
+    InterviewersSerializer,
     InterviewQuestionSerializer,
+    InterviewSerializer,
     InterviewTemplateDetailSerializer,
     InterviewTemplateSerializer,
     NoteSerializer,
@@ -47,6 +50,7 @@ from .serializers import (
 from .services import (
     change_status,
     create_choice,
+    create_interview,
     create_interview_question,
     create_interview_template,
     create_note,
@@ -54,6 +58,7 @@ from .services import (
     get_application_details,
     get_candidate_applications,
     get_interview_templates,
+    get_interviews,
     get_or_create_form,
     get_statistics,
     list_applications,
@@ -61,6 +66,7 @@ from .services import (
     list_ratings,
     rate_application,
     reorder_questions,
+    set_interviewers,
     soft_delete,
     submit_application,
 )
@@ -785,3 +791,90 @@ class InterviewQuestionDetailView(InterviewTemplateScopedView):
     def delete(self, request, edition_id, template_id, question_id):
         soft_delete(self.get_question(template_id, question_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InterviewListView(ApplicationScopedView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    @extend_schema(
+        tags=["Rozmowy"],
+        summary="Rozmowy kandydata",
+        description=(
+            "Rozmowy z tą osobą, od najstarszej, z szablonem, terminem i osobami "
+            "prowadzącymi. Widzi każdy członek edycji."
+        ),
+        responses={200: InterviewSerializer(many=True)},
+    )
+    def get(self, request, edition_id, application_id):
+        interviews = get_interviews(self.get_application(application_id))
+        return Response(InterviewSerializer(interviews, many=True).data)
+
+    @extend_schema(
+        tags=["Rozmowy"],
+        summary="Dodaj rozmowę",
+        description=(
+            "Nowa rozmowa z wybranego szablonu, jeszcze bez terminu i bez osób "
+            "prowadzących. Rekruter i koordynator."
+        ),
+        request=InterviewCreateSerializer,
+        responses={201: InterviewSerializer},
+    )
+    def post(self, request, edition_id, application_id):
+        application = self.get_application(application_id)
+        serializer = InterviewCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        interview = create_interview(
+            application, serializer.validated_data["template_id"]
+        )
+        return Response(
+            InterviewSerializer(get_interviews(application).get(pk=interview.pk)).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class InterviewScopedView(ApplicationScopedView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    def get_interview(self, application_id, interview_id):
+        return get_object_or_404(
+            get_interviews(self.get_application(application_id)), pk=interview_id
+        )
+
+
+class InterviewDetailView(InterviewScopedView):
+    @extend_schema(
+        tags=["Rozmowy"],
+        summary="Usuń rozmowę",
+        description=(
+            "Rozmowa znika na stałe, razem z notatkami i ocenami z niej. "
+            "Rekruter i koordynator."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, application_id, interview_id):
+        self.get_interview(application_id, interview_id).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InterviewInterviewersView(InterviewScopedView):
+    @extend_schema(
+        tags=["Rozmowy"],
+        summary="Ustaw osoby prowadzące",
+        description=(
+            "Przyjmuje id członkostw wszystkich osób, które prowadzą rozmowę, "
+            "i podmienia całą listę. Prowadzić mogą tylko rekruterzy i "
+            "koordynatorzy tej edycji. Rekruter i koordynator."
+        ),
+        request=InterviewersSerializer,
+        responses={200: InterviewSerializer},
+    )
+    def put(self, request, edition_id, application_id, interview_id):
+        interview = self.get_interview(application_id, interview_id)
+        serializer = InterviewersSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        set_interviewers(
+            interview, self.edition, serializer.validated_data["membership_ids"]
+        )
+        return Response(
+            InterviewSerializer(self.get_interview(application_id, interview_id)).data
+        )

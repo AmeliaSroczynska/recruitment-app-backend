@@ -7,6 +7,7 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.services import get_or_create_user
 from onboarding.models import Task
+from organizations.models import Role
 from organizations.services import generate_slug
 
 from .emails import send_application_accepted
@@ -17,6 +18,7 @@ from .models import (
     Choice,
     Form,
     FormQuestion,
+    Interview,
     InterviewQuestion,
     InterviewTemplate,
     Note,
@@ -25,6 +27,8 @@ from .models import (
 )
 
 CHOICE_TYPES = (QuestionType.Name.SINGLE_CHOICE, QuestionType.Name.MULTIPLE_CHOICE)
+
+INTERVIEWER_ROLES = (Role.Name.COORDINATOR, Role.Name.RECRUITER)
 
 DUPLICATE_APPLICATION_MESSAGE = (
     "Z tego adresu wysłano już zgłoszenie do tego formularza."
@@ -396,3 +400,38 @@ def create_interview_question(template, text):
         text=text,
         position=next_position(template.questions.filter(is_deleted=False)),
     )
+
+
+def get_interviews(application):
+    return (
+        application.interviews.select_related("template")
+        .prefetch_related("interviewers__user")
+        .order_by("id")
+    )
+
+
+def create_interview(application, template_id):
+    template = InterviewTemplate.objects.filter(
+        edition=application.form.edition, is_deleted=False, pk=template_id
+    ).first()
+    if template is None:
+        raise ValidationError({"template_id": "Nie ma takiego szablonu."})
+    return Interview.objects.create(application=application, template=template)
+
+
+def set_interviewers(interview, edition, membership_ids):
+    memberships = list(
+        edition.memberships.filter(
+            pk__in=membership_ids, role__name__in=INTERVIEWER_ROLES
+        )
+    )
+    if len(memberships) != len(set(membership_ids)):
+        raise ValidationError(
+            {
+                "membership_ids": (
+                    "Rozmowę mogą prowadzić tylko rekruterzy i koordynatorzy "
+                    "tej edycji."
+                )
+            }
+        )
+    interview.interviewers.set(memberships)
