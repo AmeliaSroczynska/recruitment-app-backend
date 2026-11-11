@@ -376,3 +376,14 @@ class InterviewCreateSerializer(serializers.Serializer):
 
 class InterviewersSerializer(serializers.Serializer):
     membership_ids = serializers.ListField(child=serializers.IntegerField())
+
+
+class InterviewAnswerSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField(read_only=True)
+    text = serializers.CharField(read_only=True)
+    note = serializers.CharField(
+        allow_blank=True, allow_null=True, required=False, max_length=5000
+    )
+    score = serializers.IntegerField(
+        allow_null=True, required=False, min_value=1, max_value=5
+    )

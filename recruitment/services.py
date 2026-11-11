@@ -19,6 +19,7 @@ from .models import (
     Form,
     FormQuestion,
     Interview,
+    InterviewAnswer,
     InterviewQuestion,
     InterviewTemplate,
     Note,
@@ -435,3 +436,43 @@ def set_interviewers(interview, edition, membership_ids):
             }
         )
     interview.interviewers.set(memberships)
+
+
+def get_interview_questions(interview):
+    return (
+        interview.template.questions.filter(
+            Q(is_deleted=False) | Q(answers__interview=interview)
+        )
+        .distinct()
+        .order_by("position", "id")
+    )
+
+
+def get_interview_answers(interview):
+    answers = {answer.question_id: answer for answer in interview.answers.all()}
+    rows = []
+    for question in get_interview_questions(interview):
+        answer = answers.get(question.id)
+        rows.append(
+            {
+                "question_id": question.id,
+                "text": question.text,
+                "note": answer.note if answer else None,
+                "score": answer.score if answer else None,
+            }
+        )
+    return rows
+
+
+def save_interview_answer(interview, question, data):
+    if "note" in data:
+        data["note"] = (data["note"] or "").strip() or None
+    answer, _ = InterviewAnswer.objects.update_or_create(
+        interview=interview, question=question, defaults=data
+    )
+    return {
+        "question_id": question.id,
+        "text": question.text,
+        "note": answer.note,
+        "score": answer.score,
+    }

@@ -9,6 +9,8 @@ from .views import (
     ChoiceListView,
     FormDetailView,
     FormHeaderImageView,
+    InterviewAnswerDetailView,
+    InterviewAnswerListView,
     InterviewDetailView,
     InterviewInterviewersView,
     InterviewListView,
@@ -87,6 +89,16 @@ application_urlpatterns = [
         "<int:edition_id>/applications/<int:application_id>/interviews/"
         "<int:interview_id>/interviewers/",
         InterviewInterviewersView.as_view(),
+    ),
+    path(
+        "<int:edition_id>/applications/<int:application_id>/interviews/"
+        "<int:interview_id>/answers/",
+        InterviewAnswerListView.as_view(),
+    ),
+    path(
+        "<int:edition_id>/applications/<int:application_id>/interviews/"
+        "<int:interview_id>/answers/<int:question_id>/",
+        InterviewAnswerDetailView.as_view(),
     ),
 ]
 

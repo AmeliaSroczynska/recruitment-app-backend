@@ -32,6 +32,7 @@ from .serializers import (
     ChoiceSerializer,
     FormHeaderImageSerializer,
     FormSerializer,
+    InterviewAnswerSerializer,
     InterviewCreateSerializer,
     InterviewersSerializer,
     InterviewQuestionSerializer,
@@ -57,6 +58,8 @@ from .services import (
     create_question,
     get_application_details,
     get_candidate_applications,
+    get_interview_answers,
+    get_interview_questions,
     get_interview_templates,
     get_interviews,
     get_or_create_form,
@@ -66,6 +69,7 @@ from .services import (
     list_ratings,
     rate_application,
     reorder_questions,
+    save_interview_answer,
     set_interviewers,
     soft_delete,
     submit_application,
@@ -878,3 +882,43 @@ class InterviewInterviewersView(InterviewScopedView):
         return Response(
             InterviewSerializer(self.get_interview(application_id, interview_id)).data
         )
+
+
+class InterviewAnswerListView(InterviewScopedView):
+    @extend_schema(
+        tags=["Rozmowy"],
+        summary="Pytania i odpowiedzi z rozmowy",
+        description=(
+            "Pytania z szablonu rozmowy w kolejności, a przy każdym notatka z "
+            "odpowiedzi kandydata i ocena 1-5 (albo null). Pytania usunięte z "
+            "szablonu zostają tylko wtedy, gdy mają już odpowiedź. Rekruter i "
+            "koordynator."
+        ),
+        responses={200: InterviewAnswerSerializer(many=True)},
+    )
+    def get(self, request, edition_id, application_id, interview_id):
+        interview = self.get_interview(application_id, interview_id)
+        return Response(
+            InterviewAnswerSerializer(get_interview_answers(interview), many=True).data
+        )
+
+
+class InterviewAnswerDetailView(InterviewScopedView):
+    @extend_schema(
+        tags=["Rozmowy"],
+        summary="Zapisz odpowiedź na pytanie",
+        description=(
+            "Zapisuje notatkę albo ocenę przy jednym pytaniu rozmowy. Wystarczy "
+            "wysłać tylko to, co się zmienia. Pusta notatka i ocena null "
+            "czyszczą wartość. Rekruter i koordynator."
+        ),
+        request=InterviewAnswerSerializer,
+        responses={200: InterviewAnswerSerializer},
+    )
+    def patch(self, request, edition_id, application_id, interview_id, question_id):
+        interview = self.get_interview(application_id, interview_id)
+        question = get_object_or_404(get_interview_questions(interview), pk=question_id)
+        serializer = InterviewAnswerSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        row = save_interview_answer(interview, question, serializer.validated_data)
+        return Response(InterviewAnswerSerializer(row).data)
