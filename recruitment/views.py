@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from config.files import replace_file
+from onboarding.services import reorder
 from organizations.permissions import IsEditionMember, IsRecruiter
 
 from .emails import send_application_received
@@ -18,6 +19,8 @@ from .models import (
     Choice,
     Form,
     FormQuestion,
+    InterviewQuestion,
+    InterviewTemplate,
     QuestionType,
 )
 from .serializers import (
@@ -29,6 +32,9 @@ from .serializers import (
     ChoiceSerializer,
     FormHeaderImageSerializer,
     FormSerializer,
+    InterviewQuestionSerializer,
+    InterviewTemplateDetailSerializer,
+    InterviewTemplateSerializer,
     NoteSerializer,
     PublicFormSerializer,
     QuestionOrderSerializer,
@@ -41,12 +47,13 @@ from .serializers import (
 from .services import (
     change_status,
     create_choice,
+    create_interview_question,
+    create_interview_template,
     create_note,
     create_question,
-    delete_choice,
-    delete_question,
     get_application_details,
     get_candidate_applications,
+    get_interview_templates,
     get_or_create_form,
     get_statistics,
     list_applications,
@@ -54,6 +61,7 @@ from .services import (
     list_ratings,
     rate_application,
     reorder_questions,
+    soft_delete,
     submit_application,
 )
 
@@ -211,7 +219,7 @@ class QuestionDetailView(APIView):
         responses={204: None},
     )
     def delete(self, request, edition_id, question_id):
-        delete_question(self.get_question(question_id))
+        soft_delete(self.get_question(question_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -301,7 +309,7 @@ class ChoiceDetailView(APIView):
         responses={204: None},
     )
     def delete(self, request, edition_id, question_id, choice_id):
-        delete_choice(self.get_choice(question_id, choice_id))
+        soft_delete(self.get_choice(question_id, choice_id))
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
@@ -601,3 +609,179 @@ class StatisticsView(APIView):
         query.is_valid(raise_exception=True)
         statistics = get_statistics(self.edition, query.validated_data["range"])
         return Response(StatisticsSerializer(statistics).data)
+
+
+class InterviewTemplateListView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Lista szablonów rozmów",
+        description="Szablony edycji z liczbą pytań. Widzi każdy członek edycji.",
+        responses={200: InterviewTemplateSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        templates = get_interview_templates(self.edition)
+        return Response(InterviewTemplateSerializer(templates, many=True).data)
+
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Dodaj szablon rozmowy",
+        description="Nowy szablon bez pytań. Rekruter i koordynator.",
+        request=InterviewTemplateSerializer,
+        responses={201: InterviewTemplateDetailSerializer},
+    )
+    def post(self, request, edition_id):
+        serializer = InterviewTemplateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        template = create_interview_template(
+            self.edition, serializer.validated_data["name"]
+        )
+        return Response(
+            InterviewTemplateDetailSerializer(template).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class InterviewTemplateScopedView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    def get_template(self, template_id):
+        return get_object_or_404(
+            InterviewTemplate,
+            edition=self.edition,
+            is_deleted=False,
+            pk=template_id,
+        )
+
+
+class InterviewTemplateDetailView(InterviewTemplateScopedView):
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Szablon rozmowy",
+        description="Nazwa i pytania szablonu w kolejności. Widzi każdy członek edycji.",
+        responses={200: InterviewTemplateDetailSerializer},
+    )
+    def get(self, request, edition_id, template_id):
+        template = self.get_template(template_id)
+        return Response(InterviewTemplateDetailSerializer(template).data)
+
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Zmień nazwę szablonu",
+        description="Rekruter i koordynator.",
+        request=InterviewTemplateSerializer,
+        responses={200: InterviewTemplateDetailSerializer},
+    )
+    def patch(self, request, edition_id, template_id):
+        serializer = InterviewTemplateSerializer(
+            self.get_template(template_id), data=request.data, partial=True
+        )
+        serializer.is_valid(raise_exception=True)
+        template = serializer.save()
+        return Response(InterviewTemplateDetailSerializer(template).data)
+
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Usuń szablon",
+        description=(
+            "Szablon znika z listy, ale zostaje w bazie, żeby rozmowy z niego "
+            "i ich notatki nie przepadły. Rekruter i koordynator."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, template_id):
+        soft_delete(self.get_template(template_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InterviewQuestionListView(InterviewTemplateScopedView):
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Pytania szablonu",
+        description="Pytania szablonu w kolejności. Widzi każdy członek edycji.",
+        responses={200: InterviewQuestionSerializer(many=True)},
+    )
+    def get(self, request, edition_id, template_id):
+        questions = self.get_template(template_id).questions.filter(is_deleted=False)
+        return Response(InterviewQuestionSerializer(questions, many=True).data)
+
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Dodaj pytanie do szablonu",
+        description="Nowe pytanie trafia na koniec szablonu. Rekruter i koordynator.",
+        request=InterviewQuestionSerializer,
+        responses={201: InterviewQuestionSerializer},
+    )
+    def post(self, request, edition_id, template_id):
+        serializer = InterviewQuestionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        question = create_interview_question(
+            self.get_template(template_id), serializer.validated_data["text"]
+        )
+        return Response(
+            InterviewQuestionSerializer(question).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class InterviewQuestionOrderView(InterviewTemplateScopedView):
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Zmień kolejność pytań w szablonie",
+        description=(
+            "Przyjmuje id wszystkich pytań szablonu w nowej kolejności. "
+            "Rekruter i koordynator."
+        ),
+        request=QuestionOrderSerializer,
+        responses={204: None},
+    )
+    def post(self, request, edition_id, template_id):
+        serializer = QuestionOrderSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        template = self.get_template(template_id)
+        reorder(
+            template.questions.filter(is_deleted=False),
+            serializer.validated_data["ids"],
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class InterviewQuestionDetailView(InterviewTemplateScopedView):
+    def get_question(self, template_id, question_id):
+        return get_object_or_404(
+            InterviewQuestion,
+            template=self.get_template(template_id),
+            is_deleted=False,
+            pk=question_id,
+        )
+
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Zmień pytanie w szablonie",
+        description="Treść pytania. Rekruter i koordynator.",
+        request=InterviewQuestionSerializer,
+        responses={200: InterviewQuestionSerializer},
+    )
+    def patch(self, request, edition_id, template_id, question_id):
+        serializer = InterviewQuestionSerializer(
+            self.get_question(template_id, question_id),
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Szablony rozmów"],
+        summary="Usuń pytanie z szablonu",
+        description=(
+            "Pytanie znika z szablonu, ale zostaje w bazie, żeby notatki i oceny "
+            "z rozmów nie przepadły. Rekruter i koordynator."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, template_id, question_id):
+        soft_delete(self.get_question(template_id, question_id))
+        return Response(status=status.HTTP_204_NO_CONTENT)

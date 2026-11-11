@@ -12,6 +12,8 @@ from .models import (
     Choice,
     Form,
     FormQuestion,
+    InterviewQuestion,
+    InterviewTemplate,
     Note,
     QuestionType,
     Rating,
@@ -304,3 +306,31 @@ class StatisticsSerializer(serializers.Serializer):
     range = serializers.ChoiceField(choices=list(STATISTICS_RANGES))
     recruitment = RecruitmentStatisticsSerializer()
     onboarding = OnboardingStatisticsSerializer()
+
+
+class InterviewQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewQuestion
+        fields = ("id", "text", "position")
+        read_only_fields = ("position",)
+
+
+class InterviewTemplateSerializer(serializers.ModelSerializer):
+    question_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = InterviewTemplate
+        fields = ("id", "name", "question_count")
+
+
+class InterviewTemplateDetailSerializer(serializers.ModelSerializer):
+    questions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InterviewTemplate
+        fields = ("id", "name", "questions")
+
+    @extend_schema_field(InterviewQuestionSerializer(many=True))
+    def get_questions(self, template):
+        questions = template.questions.filter(is_deleted=False)
+        return InterviewQuestionSerializer(questions, many=True).data

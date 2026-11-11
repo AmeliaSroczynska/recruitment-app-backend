@@ -226,6 +226,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Formularz", "description": "Formularz zgłoszeniowy edycji"},
         {"name": "Zgłoszenia", "description": "Zgłoszenia kandydatów"},
         {"name": "Oceny i notatki", "description": "Oceny i notatki zespołu"},
+        {"name": "Szablony rozmów", "description": "Szablony rozmów i ich pytania"},
         {"name": "Panel kandydata", "description": "Zgłoszenie oczami kandydata"},
         {"name": "Wdrożenie", "description": "Zadania i wdrożenie przyjętych osób"},
         {"name": "Statystyki", "description": "Wyniki rekrutacji i wdrożenia"},

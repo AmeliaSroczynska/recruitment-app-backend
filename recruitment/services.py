@@ -17,6 +17,8 @@ from .models import (
     Choice,
     Form,
     FormQuestion,
+    InterviewQuestion,
+    InterviewTemplate,
     Note,
     QuestionType,
     Rating,
@@ -62,9 +64,9 @@ def create_question(form, **data):
     )
 
 
-def delete_question(question):
-    question.is_deleted = True
-    question.save(update_fields=["is_deleted"])
+def soft_delete(item):
+    item.is_deleted = True
+    item.save(update_fields=["is_deleted"])
 
 
 @transaction.atomic
@@ -89,11 +91,6 @@ def create_choice(question, text):
     return Choice.objects.create(
         question=question, text=text, position=next_position(question.choices)
     )
-
-
-def delete_choice(choice):
-    choice.is_deleted = True
-    choice.save(update_fields=["is_deleted"])
 
 
 def prepare_answer(question, answer):
@@ -377,3 +374,25 @@ def get_statistics(edition, range_name):
         "recruitment": get_recruitment_statistics(edition, range_name),
         "onboarding": get_onboarding_statistics(edition, range_name),
     }
+
+
+def get_interview_templates(edition):
+    return (
+        edition.interview_templates.filter(is_deleted=False)
+        .annotate(
+            question_count=Count("questions", filter=Q(questions__is_deleted=False))
+        )
+        .order_by("id")
+    )
+
+
+def create_interview_template(edition, name):
+    return InterviewTemplate.objects.create(edition=edition, name=name)
+
+
+def create_interview_question(template, text):
+    return InterviewQuestion.objects.create(
+        template=template,
+        text=text,
+        position=next_position(template.questions.filter(is_deleted=False)),
+    )
