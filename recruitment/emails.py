@@ -38,3 +38,22 @@ def send_application_accepted(application):
         recipient_list=[user.email],
         fail_silently=True,
     )
+
+
+def send_interview_invitation(application):
+    user = application.user
+    edition = application.form.edition
+    send_mail(
+        subject=f"Zaproszenie na rozmowę - {edition.organization.name}",
+        message=(
+            f"Cześć {user.first_name}!\n\n"
+            f"Zapraszamy Cię na rozmowę w organizacji {edition.organization.name}. "
+            "Zaloguj się do panelu kandydata i zaznacz w kalendarzu, kiedy "
+            "możesz. Termin wybierzemy z Twojej dostępności:\n"
+            f"{settings.FRONTEND_URL}/candidate/{edition.id}\n\n"
+            f"Zaloguj się adresem {user.email}, a wyślemy Ci jednorazowy kod."
+        ),
+        from_email=None,
+        recipient_list=[user.email],
+        fail_silently=True,
+    )

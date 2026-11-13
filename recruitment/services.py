@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import time, timedelta
 
 from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Prefetch, Q
@@ -10,16 +10,18 @@ from onboarding.models import Task
 from organizations.models import Role
 from organizations.services import generate_slug
 
-from .emails import send_application_accepted
+from .emails import send_application_accepted, send_interview_invitation
 from .models import (
     Answer,
     Application,
     ApplicationStatus,
+    Availability,
     Choice,
     Form,
     FormQuestion,
     Interview,
     InterviewAnswer,
+    InterviewDay,
     InterviewQuestion,
     InterviewTemplate,
     Note,
@@ -230,6 +232,10 @@ def change_status(application, status_name):
         status_name == ApplicationStatus.Name.ACCEPTED
         and application.accepted_at is None
     )
+    is_new_invitation = (
+        status_name == ApplicationStatus.Name.INTERVIEW
+        and application.status.name != ApplicationStatus.Name.INTERVIEW
+    )
     application.status = ApplicationStatus.objects.get(name=status_name)
     if status_name != ApplicationStatus.Name.ACCEPTED:
         application.accepted_at = None
@@ -238,6 +244,8 @@ def change_status(application, status_name):
     application.save(update_fields=["status", "accepted_at"])
     if is_new_acceptance:
         send_application_accepted(application)
+    if is_new_invitation:
+        send_interview_invitation(application)
 
 
 def list_ratings(application):
@@ -492,4 +500,66 @@ def list_edition_interviews(edition, search=None):
     interviews = search_by_person(interviews, search, "application__user")
     return interviews.order_by(
         F("date").desc(nulls_last=True), F("start_time").desc(nulls_last=True), "-id"
+    )
+
+
+GRID_START = time(8, 0)
+GRID_END = time(20, 0)
+GRID_MINUTES = 15
+
+
+def get_interview_days(edition):
+    return list(edition.interview_days.values_list("date", flat=True))
+
+
+@transaction.atomic
+def set_interview_days(edition, dates, info):
+    dates = set(dates)
+    removed = list(
+        edition.interview_days.exclude(date__in=dates).values_list("date", flat=True)
+    )
+    Availability.objects.filter(
+        application__form__edition=edition, date__in=removed
+    ).delete()
+    edition.interview_days.filter(date__in=removed).delete()
+    existing = set(get_interview_days(edition))
+    InterviewDay.objects.bulk_create(
+        InterviewDay(edition=edition, date=date) for date in sorted(dates - existing)
+    )
+    edition.interview_info = (info or "").strip() or None
+    edition.save(update_fields=["interview_info"])
+
+
+def is_on_grid(value):
+    return (
+        GRID_START <= value <= GRID_END
+        and value.minute % GRID_MINUTES == 0
+        and value.second == 0
+        and value.microsecond == 0
+    )
+
+
+def get_availability(application):
+    return application.availabilities.order_by("date", "start_time")
+
+
+@transaction.atomic
+def set_availability(application, slots):
+    days = set(get_interview_days(application.form.edition))
+    for slot in slots:
+        if slot["date"] not in days:
+            raise ValidationError(
+                {"slots": "Możesz wybrać tylko dni rozmów ustawione przez organizację."}
+            )
+        if not (
+            is_on_grid(slot["start_time"])
+            and is_on_grid(slot["end_time"])
+            and slot["start_time"] < slot["end_time"]
+        ):
+            raise ValidationError(
+                {"slots": "Godziny muszą mieścić się między 8:00 a 20:00, co 15 minut."}
+            )
+    application.availabilities.all().delete()
+    Availability.objects.bulk_create(
+        Availability(application=application, **slot) for slot in slots
     )

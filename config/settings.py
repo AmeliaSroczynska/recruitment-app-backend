@@ -228,6 +228,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Oceny i notatki", "description": "Oceny i notatki zespołu"},
         {"name": "Szablony rozmów", "description": "Szablony rozmów i ich pytania"},
         {"name": "Rozmowy", "description": "Rozmowy z kandydatami"},
+        {"name": "Kalendarz", "description": "Dni rozmów i dostępność kandydatów"},
         {"name": "Panel kandydata", "description": "Zgłoszenie oczami kandydata"},
         {"name": "Wdrożenie", "description": "Zadania i wdrożenie przyjętych osób"},
         {"name": "Statystyki", "description": "Wyniki rekrutacji i wdrożenia"},

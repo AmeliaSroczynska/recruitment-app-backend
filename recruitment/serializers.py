@@ -408,3 +408,26 @@ class InterviewAnswerSerializer(serializers.Serializer):
     score = serializers.IntegerField(
         allow_null=True, required=False, min_value=1, max_value=5
     )
+
+
+class InterviewDaysSerializer(serializers.Serializer):
+    dates = serializers.ListField(child=serializers.DateField())
+    info = serializers.CharField(
+        allow_blank=True, allow_null=True, required=False, max_length=2000
+    )
+
+
+class AvailabilitySlotSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    start_time = serializers.TimeField(format="%H:%M")
+    end_time = serializers.TimeField(format="%H:%M")
+
+
+class AvailabilityUpdateSerializer(serializers.Serializer):
+    slots = AvailabilitySlotSerializer(many=True)
+
+
+class CandidateAvailabilitySerializer(serializers.Serializer):
+    days = serializers.ListField(child=serializers.DateField())
+    info = serializers.CharField(allow_null=True)
+    slots = AvailabilitySlotSerializer(many=True)

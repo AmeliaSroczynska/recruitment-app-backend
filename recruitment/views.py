@@ -10,7 +10,7 @@ from rest_framework.views import APIView
 
 from config.files import replace_file
 from onboarding.services import reorder
-from organizations.permissions import IsEditionMember, IsRecruiter
+from organizations.permissions import IsCandidate, IsEditionMember, IsRecruiter
 
 from .emails import send_application_received
 from .models import (
@@ -28,13 +28,16 @@ from .serializers import (
     ApplicationDetailSerializer,
     ApplicationListSerializer,
     ApplicationStatusSerializer,
+    AvailabilityUpdateSerializer,
     CandidateApplicationSerializer,
+    CandidateAvailabilitySerializer,
     ChoiceSerializer,
     EditionInterviewSerializer,
     FormHeaderImageSerializer,
     FormSerializer,
     InterviewAnswerSerializer,
     InterviewCreateSerializer,
+    InterviewDaysSerializer,
     InterviewersSerializer,
     InterviewQuestionSerializer,
     InterviewSerializer,
@@ -58,8 +61,10 @@ from .services import (
     create_note,
     create_question,
     get_application_details,
+    get_availability,
     get_candidate_applications,
     get_interview_answers,
+    get_interview_days,
     get_interview_questions,
     get_interview_templates,
     get_interviews,
@@ -72,6 +77,8 @@ from .services import (
     rate_application,
     reorder_questions,
     save_interview_answer,
+    set_availability,
+    set_interview_days,
     set_interviewers,
     soft_delete,
     submit_application,
@@ -945,3 +952,91 @@ class EditionInterviewListView(APIView):
             self.edition, request.query_params.get("search")
         )
         return Response(EditionInterviewSerializer(interviews, many=True).data)
+
+
+class InterviewDaysView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    def get_data(self):
+        return {
+            "dates": get_interview_days(self.edition),
+            "info": self.edition.interview_info,
+        }
+
+    @extend_schema(
+        tags=["Kalendarz"],
+        summary="Dni rozmów",
+        description=(
+            "Dni, w które odbywają się rozmowy, i informacja dla kandydatów "
+            "(np. miejsce spotkań). Widzi każdy członek edycji."
+        ),
+        responses={200: InterviewDaysSerializer},
+    )
+    def get(self, request, edition_id):
+        return Response(InterviewDaysSerializer(self.get_data()).data)
+
+    @extend_schema(
+        tags=["Kalendarz"],
+        summary="Ustaw dni rozmów",
+        description=(
+            "Podmienia całą listę dni rozmów i informację dla kandydatów. "
+            "Usunięcie dnia kasuje dostępność kandydatów z tego dnia. "
+            "Rekruter i koordynator."
+        ),
+        request=InterviewDaysSerializer,
+        responses={200: InterviewDaysSerializer},
+    )
+    def put(self, request, edition_id):
+        serializer = InterviewDaysSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        set_interview_days(
+            self.edition,
+            serializer.validated_data["dates"],
+            serializer.validated_data.get("info"),
+        )
+        return Response(InterviewDaysSerializer(self.get_data()).data)
+
+
+class CandidateAvailabilityView(APIView):
+    permission_classes = (IsAuthenticated, IsCandidate)
+
+    def get_data(self):
+        edition = self.application.form.edition
+        return {
+            "days": get_interview_days(edition),
+            "info": edition.interview_info,
+            "slots": get_availability(self.application),
+        }
+
+    @extend_schema(
+        tags=["Panel kandydata"],
+        summary="Moja dostępność",
+        description=(
+            "Dni rozmów ustawione przez organizację, informacja od niej i "
+            "godziny, które kandydat zaznaczył. Tylko własne zgłoszenie."
+        ),
+        responses={200: CandidateAvailabilitySerializer},
+    )
+    def get(self, request, application_id):
+        return Response(CandidateAvailabilitySerializer(self.get_data()).data)
+
+    @extend_schema(
+        tags=["Panel kandydata"],
+        summary="Wyślij dostępność",
+        description=(
+            "Podmienia całą dostępność kandydata. Działa tylko ze statusem "
+            "Rozmowa. Godziny między 8:00 a 20:00, co 15 minut, tylko w dni "
+            "rozmów."
+        ),
+        request=AvailabilityUpdateSerializer,
+        responses={200: CandidateAvailabilitySerializer},
+    )
+    def put(self, request, application_id):
+        if self.application.status.name != ApplicationStatus.Name.INTERVIEW:
+            raise PermissionDenied(
+                "Dostępność podasz, gdy dostaniesz zaproszenie na rozmowę."
+            )
+        serializer = AvailabilityUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        set_availability(self.application, serializer.validated_data["slots"])
+        return Response(CandidateAvailabilitySerializer(self.get_data()).data)
