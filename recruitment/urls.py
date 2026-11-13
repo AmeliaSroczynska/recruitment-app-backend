@@ -33,6 +33,7 @@ from .views import (
     QuestionOrderView,
     QuestionTypeListView,
     RatingListView,
+    ScheduledInterviewListView,
     StatisticsView,
 )
 
@@ -129,6 +130,10 @@ interview_template_urlpatterns = [
     path("<int:edition_id>/interviews/", EditionInterviewListView.as_view()),
     path("<int:edition_id>/interview-days/", InterviewDaysView.as_view()),
     path("<int:edition_id>/to-schedule/", ApplicationToScheduleListView.as_view()),
+    path(
+        "<int:edition_id>/scheduled-interviews/",
+        ScheduledInterviewListView.as_view(),
+    ),
     path("<int:edition_id>/interview-templates/", InterviewTemplateListView.as_view()),
     path(
         "<int:edition_id>/interview-templates/<int:template_id>/",

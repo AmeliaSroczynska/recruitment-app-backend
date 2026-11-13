@@ -80,6 +80,7 @@ from .services import (
     list_edition_interviews,
     list_notes,
     list_ratings,
+    list_scheduled_interviews,
     rate_application,
     reorder_questions,
     save_interview_answer,
@@ -624,8 +625,8 @@ class StatisticsView(APIView):
             "Wyniki rekrutacji i wdrożenia z ostatnich 7 dni, 30 dni albo całej "
             "edycji (domyślnie cała edycja). Rekrutacja liczy zgłoszenia wysłane "
             "w tym okresie, wdrożenie - osoby przyjęte w tym okresie. Widzi każdy "
-            "członek edycji, także obserwator. Rozmowy odbyte są puste, dopóki "
-            "nie ma modułu rozmów."
+            "członek edycji, także obserwator. Rozmowy odbyte to rozmowy tych "
+            "zgłoszeń, których termin już minął."
         ),
         parameters=[StatisticsQuerySerializer],
         responses={200: StatisticsSerializer},
@@ -1119,3 +1120,24 @@ class CandidateInterviewCancelView(CandidateAvailabilityView):
     def post(self, request, application_id):
         cancel_interview(self.application)
         return Response(CandidateAvailabilitySerializer(self.get_data()).data)
+
+
+class ScheduledInterviewListView(APIView):
+    permission_classes = (IsAuthenticated, IsEditionMember)
+
+    @extend_schema(
+        tags=["Kalendarz"],
+        summary="Umówione rozmowy",
+        description=(
+            "Rozmowy z terminem, od najwcześniejszej. Z mine=true tylko te, "
+            "które prowadzi zalogowana osoba. Widzi każdy członek edycji."
+        ),
+        parameters=[OpenApiParameter("mine", bool)],
+        responses={200: EditionInterviewSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        mine = request.query_params.get("mine") == "true"
+        interviews = list_scheduled_interviews(
+            self.edition, self.membership if mine else None
+        )
+        return Response(EditionInterviewSerializer(interviews, many=True).data)

@@ -304,7 +304,7 @@ def get_recruitment_statistics(edition, range_name):
     ]
     return {
         "applications": total,
-        "interviews_done": None,
+        "interviews_done": count_interviews_done(applications),
         "accepted": counts.get(ApplicationStatus.Name.ACCEPTED, 0),
         "statuses": statuses,
     }
@@ -505,6 +505,26 @@ def list_edition_interviews(edition, search=None):
     interviews = search_by_person(interviews, search, "application__user")
     return interviews.order_by(
         F("date").desc(nulls_last=True), F("start_time").desc(nulls_last=True), "-id"
+    )
+
+
+def list_scheduled_interviews(edition, membership=None):
+    interviews = (
+        Interview.objects.filter(application__form__edition=edition, date__isnull=False)
+        .select_related("template", "application__user")
+        .prefetch_related("interviewers__user")
+    )
+    if membership is not None:
+        interviews = interviews.filter(interviewers=membership)
+    return interviews.order_by("date", "start_time", "id")
+
+
+def count_interviews_done(applications):
+    now = timezone.localtime()
+    return (
+        Interview.objects.filter(application__in=applications)
+        .filter(Q(date__lt=now.date()) | Q(date=now.date(), end_time__lte=now.time()))
+        .count()
     )
 
 
