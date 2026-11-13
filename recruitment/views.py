@@ -28,6 +28,7 @@ from .serializers import (
     ApplicationDetailSerializer,
     ApplicationListSerializer,
     ApplicationStatusSerializer,
+    ApplicationToScheduleSerializer,
     AvailabilityUpdateSerializer,
     CandidateApplicationSerializer,
     CandidateAvailabilitySerializer,
@@ -49,10 +50,12 @@ from .serializers import (
     QuestionSerializer,
     QuestionTypeSerializer,
     RatingSerializer,
+    ScheduleInterviewSerializer,
     StatisticsQuerySerializer,
     StatisticsSerializer,
 )
 from .services import (
+    cancel_interview,
     change_status,
     create_choice,
     create_interview,
@@ -61,6 +64,7 @@ from .services import (
     create_note,
     create_question,
     get_application_details,
+    get_applications_to_schedule,
     get_availability,
     get_candidate_applications,
     get_interview_answers,
@@ -70,6 +74,8 @@ from .services import (
     get_interviews,
     get_or_create_form,
     get_statistics,
+    get_upcoming_interview,
+    get_upcoming_interview_days,
     list_applications,
     list_edition_interviews,
     list_notes,
@@ -77,6 +83,7 @@ from .services import (
     rate_application,
     reorder_questions,
     save_interview_answer,
+    schedule_interview,
     set_availability,
     set_interview_days,
     set_interviewers,
@@ -1003,17 +1010,19 @@ class CandidateAvailabilityView(APIView):
     def get_data(self):
         edition = self.application.form.edition
         return {
-            "days": get_interview_days(edition),
+            "days": get_upcoming_interview_days(edition),
             "info": edition.interview_info,
             "slots": get_availability(self.application),
+            "interview": get_upcoming_interview(self.application),
         }
 
     @extend_schema(
         tags=["Panel kandydata"],
         summary="Moja dostępność",
         description=(
-            "Dni rozmów ustawione przez organizację, informacja od niej i "
-            "godziny, które kandydat zaznaczył. Tylko własne zgłoszenie."
+            "Dni rozmów od dziś ustawione przez organizację, informacja od niej, "
+            "godziny od dziś, które kandydat zaznaczył, i najbliższa umówiona rozmowa "
+            "(albo null). Tylko własne zgłoszenie."
         ),
         responses={200: CandidateAvailabilitySerializer},
     )
@@ -1026,7 +1035,7 @@ class CandidateAvailabilityView(APIView):
         description=(
             "Podmienia całą dostępność kandydata. Działa tylko ze statusem "
             "Rozmowa. Godziny między 8:00 a 20:00, co 15 minut, tylko w dni "
-            "rozmów."
+            "rozmów od dziś."
         ),
         request=AvailabilityUpdateSerializer,
         responses={200: CandidateAvailabilitySerializer},
@@ -1036,7 +1045,77 @@ class CandidateAvailabilityView(APIView):
             raise PermissionDenied(
                 "Dostępność podasz, gdy dostaniesz zaproszenie na rozmowę."
             )
+        if get_upcoming_interview(self.application):
+            raise PermissionDenied(
+                "Masz już umówioną rozmowę. Odwołaj ją, żeby zmienić dostępność."
+            )
         serializer = AvailabilityUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         set_availability(self.application, serializer.validated_data["slots"])
+        return Response(CandidateAvailabilitySerializer(self.get_data()).data)
+
+
+class ApplicationToScheduleListView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    @extend_schema(
+        tags=["Kalendarz"],
+        summary="Kandydaci do umówienia",
+        description=(
+            "Kandydaci ze statusem Rozmowa, którzy podali dostępność i nie mają "
+            "jeszcze umówionej rozmowy, od najwcześniejszego zgłoszenia. Przy "
+            "każdym jego dostępność i rozmowa bez terminu, jeśli jest. Widzi "
+            "każdy członek edycji."
+        ),
+        responses={200: ApplicationToScheduleSerializer(many=True)},
+    )
+    def get(self, request, edition_id):
+        applications = get_applications_to_schedule(self.edition)
+        return Response(ApplicationToScheduleSerializer(applications, many=True).data)
+
+
+class InterviewScheduleView(ApplicationScopedView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+
+    @extend_schema(
+        tags=["Kalendarz"],
+        summary="Umów rozmowę",
+        description=(
+            "Ustawia termin z dostępności kandydata. Termin trafia do rozmowy "
+            "bez terminu, a gdy jej nie ma, powstaje nowa rozmowa z podanego "
+            "szablonu. Gdy nikt jej nie prowadzi, prowadzącą zostaje osoba, "
+            "która umawia. Kandydat dostaje mail z terminem. Rekruter i "
+            "koordynator."
+        ),
+        request=ScheduleInterviewSerializer,
+        responses={200: InterviewSerializer},
+    )
+    def post(self, request, edition_id, application_id):
+        application = self.get_application(application_id)
+        serializer = ScheduleInterviewSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        interview = schedule_interview(
+            application, self.membership, serializer.validated_data
+        )
+        return Response(
+            InterviewSerializer(get_interviews(application).get(pk=interview.pk)).data
+        )
+
+
+class CandidateInterviewCancelView(CandidateAvailabilityView):
+    http_method_names = ("post", "options")
+
+    @extend_schema(
+        tags=["Panel kandydata"],
+        summary="Odwołaj rozmowę",
+        description=(
+            "Usuwa termin najbliższej umówionej rozmowy. Rozmowa wraca do "
+            "listy Do umówienia, a kandydat może poprawić dostępność. Mail "
+            "dostaje kandydat i osoby prowadzące. Tylko własne zgłoszenie."
+        ),
+        request=None,
+        responses={200: CandidateAvailabilitySerializer},
+    )
+    def post(self, request, application_id):
+        cancel_interview(self.application)
         return Response(CandidateAvailabilitySerializer(self.get_data()).data)

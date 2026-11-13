@@ -4,8 +4,10 @@ from .views import (
     ApplicationCreateView,
     ApplicationDetailView,
     ApplicationListView,
+    ApplicationToScheduleListView,
     CandidateApplicationView,
     CandidateAvailabilityView,
+    CandidateInterviewCancelView,
     ChoiceDetailView,
     ChoiceListView,
     EditionInterviewListView,
@@ -20,6 +22,7 @@ from .views import (
     InterviewQuestionDetailView,
     InterviewQuestionListView,
     InterviewQuestionOrderView,
+    InterviewScheduleView,
     InterviewTemplateDetailView,
     InterviewTemplateListView,
     NoteDetailView,
@@ -84,6 +87,10 @@ application_urlpatterns = [
         InterviewListView.as_view(),
     ),
     path(
+        "<int:edition_id>/applications/<int:application_id>/schedule/",
+        InterviewScheduleView.as_view(),
+    ),
+    path(
         "<int:edition_id>/applications/<int:application_id>/interviews/"
         "<int:interview_id>/",
         InterviewDetailView.as_view(),
@@ -108,6 +115,10 @@ application_urlpatterns = [
 candidate_urlpatterns = [
     path("<int:application_id>/", CandidateApplicationView.as_view()),
     path("<int:application_id>/availability/", CandidateAvailabilityView.as_view()),
+    path(
+        "<int:application_id>/interview/cancel/",
+        CandidateInterviewCancelView.as_view(),
+    ),
 ]
 
 statistics_urlpatterns = [
@@ -117,6 +128,7 @@ statistics_urlpatterns = [
 interview_template_urlpatterns = [
     path("<int:edition_id>/interviews/", EditionInterviewListView.as_view()),
     path("<int:edition_id>/interview-days/", InterviewDaysView.as_view()),
+    path("<int:edition_id>/to-schedule/", ApplicationToScheduleListView.as_view()),
     path("<int:edition_id>/interview-templates/", InterviewTemplateListView.as_view()),
     path(
         "<int:edition_id>/interview-templates/<int:template_id>/",

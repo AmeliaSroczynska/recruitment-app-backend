@@ -10,7 +10,12 @@ from onboarding.models import Task
 from organizations.models import Role
 from organizations.services import generate_slug
 
-from .emails import send_application_accepted, send_interview_invitation
+from .emails import (
+    send_application_accepted,
+    send_interview_cancelled,
+    send_interview_invitation,
+    send_interview_scheduled,
+)
 from .models import (
     Answer,
     Application,
@@ -512,6 +517,14 @@ def get_interview_days(edition):
     return list(edition.interview_days.values_list("date", flat=True))
 
 
+def get_upcoming_interview_days(edition):
+    return list(
+        edition.interview_days.filter(date__gte=timezone.localdate()).values_list(
+            "date", flat=True
+        )
+    )
+
+
 @transaction.atomic
 def set_interview_days(edition, dates, info):
     dates = set(dates)
@@ -540,16 +553,20 @@ def is_on_grid(value):
 
 
 def get_availability(application):
-    return application.availabilities.order_by("date", "start_time")
+    return application.availabilities.filter(date__gte=timezone.localdate()).order_by(
+        "date", "start_time"
+    )
 
 
 @transaction.atomic
 def set_availability(application, slots):
-    days = set(get_interview_days(application.form.edition))
+    days = set(get_upcoming_interview_days(application.form.edition))
     for slot in slots:
         if slot["date"] not in days:
             raise ValidationError(
-                {"slots": "Możesz wybrać tylko dni rozmów ustawione przez organizację."}
+                {
+                    "slots": "Możesz wybrać tylko dni rozmów ustawione przez organizację, od dziś."
+                }
             )
         if not (
             is_on_grid(slot["start_time"])
@@ -563,3 +580,88 @@ def set_availability(application, slots):
     Availability.objects.bulk_create(
         Availability(application=application, **slot) for slot in slots
     )
+
+
+def get_upcoming_interview(application):
+    return (
+        application.interviews.filter(date__gte=timezone.localdate())
+        .select_related("template")
+        .order_by("date", "start_time")
+        .first()
+    )
+
+
+def get_applications_to_schedule(edition):
+    return (
+        Application.objects.filter(
+            form__edition=edition,
+            status__name=ApplicationStatus.Name.INTERVIEW,
+            availabilities__isnull=False,
+        )
+        .exclude(interviews__date__gte=timezone.localdate())
+        .select_related("user")
+        .prefetch_related(
+            Prefetch(
+                "availabilities",
+                queryset=Availability.objects.order_by("date", "start_time"),
+            ),
+            Prefetch(
+                "interviews",
+                queryset=Interview.objects.filter(date__isnull=True)
+                .select_related("template")
+                .order_by("id"),
+                to_attr="pending_interviews",
+            ),
+        )
+        .distinct()
+        .order_by("submitted_at", "id")
+    )
+
+
+@transaction.atomic
+def schedule_interview(application, membership, data):
+    if application.status.name != ApplicationStatus.Name.INTERVIEW:
+        raise ValidationError({"detail": "Ten kandydat nie ma statusu Rozmowa."})
+    if get_upcoming_interview(application):
+        raise ValidationError({"detail": "Ten kandydat ma już umówioną rozmowę."})
+    date, start_time, end_time = data["date"], data["start_time"], data["end_time"]
+    if date < timezone.localdate():
+        raise ValidationError({"date": "Nie można umówić rozmowy w przeszłości."})
+    fits = application.availabilities.filter(
+        date=date, start_time__lte=start_time, end_time__gte=end_time
+    ).exists()
+    if not (
+        fits
+        and is_on_grid(start_time)
+        and is_on_grid(end_time)
+        and start_time < end_time
+    ):
+        raise ValidationError(
+            {"start_time": "Wybierz jeden ciągły przedział z dostępności kandydata."}
+        )
+    interview = application.interviews.filter(date__isnull=True).order_by("id").first()
+    if interview is None:
+        if data.get("template_id") is None:
+            raise ValidationError({"template_id": "Wybierz szablon rozmowy."})
+        interview = create_interview(application, data["template_id"])
+    interview.date = date
+    interview.start_time = start_time
+    interview.end_time = end_time
+    interview.save(update_fields=["date", "start_time", "end_time"])
+    if not interview.interviewers.exists():
+        interview.interviewers.add(membership)
+    send_interview_scheduled(interview)
+    return interview
+
+
+@transaction.atomic
+def cancel_interview(application):
+    interview = get_upcoming_interview(application)
+    if interview is None:
+        raise ValidationError({"detail": "Nie masz umówionej rozmowy."})
+    term = (interview.date, interview.start_time, interview.end_time)
+    interview.date = None
+    interview.start_time = None
+    interview.end_time = None
+    interview.save(update_fields=["date", "start_time", "end_time"])
+    send_interview_cancelled(interview, *term)

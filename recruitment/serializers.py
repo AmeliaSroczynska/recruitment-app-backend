@@ -427,7 +427,59 @@ class AvailabilityUpdateSerializer(serializers.Serializer):
     slots = AvailabilitySlotSerializer(many=True)
 
 
+class ScheduledInterviewSerializer(serializers.ModelSerializer):
+    template_name = serializers.CharField(source="template.name")
+    start_time = serializers.TimeField(format="%H:%M")
+    end_time = serializers.TimeField(format="%H:%M")
+
+    class Meta:
+        model = Interview
+        fields = ("id", "template_name", "date", "start_time", "end_time")
+
+
 class CandidateAvailabilitySerializer(serializers.Serializer):
     days = serializers.ListField(child=serializers.DateField())
     info = serializers.CharField(allow_null=True)
     slots = AvailabilitySlotSerializer(many=True)
+    interview = ScheduledInterviewSerializer(allow_null=True)
+
+
+class PendingInterviewSerializer(serializers.ModelSerializer):
+    template_name = serializers.CharField(source="template.name")
+
+    class Meta:
+        model = Interview
+        fields = ("id", "template_name")
+
+
+class ApplicationToScheduleSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name")
+    last_name = serializers.CharField(source="user.last_name")
+    email = serializers.EmailField(source="user.email")
+    photo_url = serializers.SerializerMethodField()
+    slots = AvailabilitySlotSerializer(source="availabilities", many=True)
+    pending_interview = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Application
+        fields = (
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "photo_url",
+            "slots",
+            "pending_interview",
+        )
+
+    def get_photo_url(self, application) -> str | None:
+        return get_file_url(application.user.photo)
+
+    @extend_schema_field(PendingInterviewSerializer(allow_null=True))
+    def get_pending_interview(self, application):
+        pending = application.pending_interviews
+        return PendingInterviewSerializer(pending[0]).data if pending else None
+
+
+class ScheduleInterviewSerializer(AvailabilitySlotSerializer):
+    template_id = serializers.IntegerField(required=False, allow_null=True)
