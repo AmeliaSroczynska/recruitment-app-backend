@@ -67,6 +67,7 @@ class MemberSerializer(serializers.ModelSerializer):
     email = serializers.EmailField(source="user.email", read_only=True)
     first_name = serializers.CharField(source="user.first_name", read_only=True)
     last_name = serializers.CharField(source="user.last_name", read_only=True)
+    photo_url = serializers.SerializerMethodField()
     role = serializers.SlugRelatedField(
         slug_field="name",
         queryset=Role.objects.all(),
@@ -75,7 +76,18 @@ class MemberSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Membership
-        fields = ("id", "user_id", "email", "first_name", "last_name", "role")
+        fields = (
+            "id",
+            "user_id",
+            "email",
+            "first_name",
+            "last_name",
+            "photo_url",
+            "role",
+        )
+
+    def get_photo_url(self, membership) -> str | None:
+        return get_file_url(membership.user.photo)
 
 
 class MemberCreateSerializer(serializers.Serializer):

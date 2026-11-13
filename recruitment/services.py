@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import time, timedelta
 
 from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Prefetch, Q
@@ -7,22 +7,36 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.services import get_or_create_user
 from onboarding.models import Task
+from organizations.models import Role
 from organizations.services import generate_slug
 
-from .emails import send_application_accepted
+from .emails import (
+    send_application_accepted,
+    send_interview_cancelled,
+    send_interview_invitation,
+    send_interview_scheduled,
+)
 from .models import (
     Answer,
     Application,
     ApplicationStatus,
+    Availability,
     Choice,
     Form,
     FormQuestion,
+    Interview,
+    InterviewAnswer,
+    InterviewDay,
+    InterviewQuestion,
+    InterviewTemplate,
     Note,
     QuestionType,
     Rating,
 )
 
 CHOICE_TYPES = (QuestionType.Name.SINGLE_CHOICE, QuestionType.Name.MULTIPLE_CHOICE)
+
+INTERVIEWER_ROLES = (Role.Name.COORDINATOR, Role.Name.RECRUITER)
 
 DUPLICATE_APPLICATION_MESSAGE = (
     "Z tego adresu wysłano już zgłoszenie do tego formularza."
@@ -62,9 +76,9 @@ def create_question(form, **data):
     )
 
 
-def delete_question(question):
-    question.is_deleted = True
-    question.save(update_fields=["is_deleted"])
+def soft_delete(item):
+    item.is_deleted = True
+    item.save(update_fields=["is_deleted"])
 
 
 @transaction.atomic
@@ -89,11 +103,6 @@ def create_choice(question, text):
     return Choice.objects.create(
         question=question, text=text, position=next_position(question.choices)
     )
-
-
-def delete_choice(choice):
-    choice.is_deleted = True
-    choice.save(update_fields=["is_deleted"])
 
 
 def prepare_answer(question, answer):
@@ -175,6 +184,16 @@ def submit_application(form, first_name, last_name, email, answers):
     return application
 
 
+def search_by_person(queryset, search, prefix):
+    for word in (search or "").split():
+        queryset = queryset.filter(
+            Q(**{f"{prefix}__first_name__icontains": word})
+            | Q(**{f"{prefix}__last_name__icontains": word})
+            | Q(**{f"{prefix}__email__icontains": word})
+        )
+    return queryset
+
+
 def list_applications(edition, status=None, search=None, ordering=None):
     applications = (
         Application.objects.filter(form__edition=edition)
@@ -183,12 +202,7 @@ def list_applications(edition, status=None, search=None, ordering=None):
     )
     if status:
         applications = applications.filter(status__name=status)
-    for word in (search or "").split():
-        applications = applications.filter(
-            Q(user__first_name__icontains=word)
-            | Q(user__last_name__icontains=word)
-            | Q(user__email__icontains=word)
-        )
+    applications = search_by_person(applications, search, "user")
     order = APPLICATION_ORDERINGS.get(ordering, APPLICATION_ORDERINGS["submitted_at"])
     return applications.order_by(*order, "-id")
 
@@ -223,6 +237,10 @@ def change_status(application, status_name):
         status_name == ApplicationStatus.Name.ACCEPTED
         and application.accepted_at is None
     )
+    is_new_invitation = (
+        status_name == ApplicationStatus.Name.INTERVIEW
+        and application.status.name != ApplicationStatus.Name.INTERVIEW
+    )
     application.status = ApplicationStatus.objects.get(name=status_name)
     if status_name != ApplicationStatus.Name.ACCEPTED:
         application.accepted_at = None
@@ -231,6 +249,8 @@ def change_status(application, status_name):
     application.save(update_fields=["status", "accepted_at"])
     if is_new_acceptance:
         send_application_accepted(application)
+    if is_new_invitation:
+        send_interview_invitation(application)
 
 
 def list_ratings(application):
@@ -284,7 +304,7 @@ def get_recruitment_statistics(edition, range_name):
     ]
     return {
         "applications": total,
-        "interviews_done": None,
+        "interviews_done": count_interviews_done(applications),
         "accepted": counts.get(ApplicationStatus.Name.ACCEPTED, 0),
         "statuses": statuses,
     }
@@ -377,3 +397,291 @@ def get_statistics(edition, range_name):
         "recruitment": get_recruitment_statistics(edition, range_name),
         "onboarding": get_onboarding_statistics(edition, range_name),
     }
+
+
+def get_interview_templates(edition):
+    return (
+        edition.interview_templates.filter(is_deleted=False)
+        .annotate(
+            question_count=Count("questions", filter=Q(questions__is_deleted=False))
+        )
+        .order_by("id")
+    )
+
+
+def create_interview_template(edition, name):
+    return InterviewTemplate.objects.create(edition=edition, name=name)
+
+
+def create_interview_question(template, text):
+    return InterviewQuestion.objects.create(
+        template=template,
+        text=text,
+        position=next_position(template.questions.filter(is_deleted=False)),
+    )
+
+
+def get_interviews(application):
+    return (
+        application.interviews.select_related("template")
+        .prefetch_related("interviewers__user")
+        .order_by("id")
+    )
+
+
+def create_interview(application, template_id):
+    template = InterviewTemplate.objects.filter(
+        edition=application.form.edition, is_deleted=False, pk=template_id
+    ).first()
+    if template is None:
+        raise ValidationError({"template_id": "Nie ma takiego szablonu."})
+    return Interview.objects.create(application=application, template=template)
+
+
+def set_interviewers(interview, edition, membership_ids):
+    memberships = list(
+        edition.memberships.filter(
+            pk__in=membership_ids, role__name__in=INTERVIEWER_ROLES
+        )
+    )
+    if len(memberships) != len(set(membership_ids)):
+        raise ValidationError(
+            {
+                "membership_ids": (
+                    "Rozmowę mogą prowadzić tylko rekruterzy i koordynatorzy "
+                    "tej edycji."
+                )
+            }
+        )
+    interview.interviewers.set(memberships)
+
+
+def get_interview_questions(interview):
+    return (
+        interview.template.questions.filter(
+            Q(is_deleted=False) | Q(answers__interview=interview)
+        )
+        .distinct()
+        .order_by("position", "id")
+    )
+
+
+def get_interview_answers(interview):
+    answers = {answer.question_id: answer for answer in interview.answers.all()}
+    rows = []
+    for question in get_interview_questions(interview):
+        answer = answers.get(question.id)
+        rows.append(
+            {
+                "question_id": question.id,
+                "text": question.text,
+                "note": answer.note if answer else None,
+                "score": answer.score if answer else None,
+            }
+        )
+    return rows
+
+
+def save_interview_answer(interview, question, data):
+    if "note" in data:
+        data["note"] = (data["note"] or "").strip() or None
+    answer, _ = InterviewAnswer.objects.update_or_create(
+        interview=interview, question=question, defaults=data
+    )
+    return {
+        "question_id": question.id,
+        "text": question.text,
+        "note": answer.note,
+        "score": answer.score,
+    }
+
+
+def list_edition_interviews(edition, search=None):
+    interviews = (
+        Interview.objects.filter(application__form__edition=edition)
+        .select_related("template", "application__user")
+        .prefetch_related("interviewers__user")
+    )
+    interviews = search_by_person(interviews, search, "application__user")
+    return interviews.order_by(
+        F("date").desc(nulls_last=True), F("start_time").desc(nulls_last=True), "-id"
+    )
+
+
+def list_scheduled_interviews(edition, membership=None):
+    interviews = (
+        Interview.objects.filter(application__form__edition=edition, date__isnull=False)
+        .select_related("template", "application__user")
+        .prefetch_related("interviewers__user")
+    )
+    if membership is not None:
+        interviews = interviews.filter(interviewers=membership)
+    return interviews.order_by("date", "start_time", "id")
+
+
+def count_interviews_done(applications):
+    now = timezone.localtime()
+    return (
+        Interview.objects.filter(application__in=applications)
+        .filter(Q(date__lt=now.date()) | Q(date=now.date(), end_time__lte=now.time()))
+        .count()
+    )
+
+
+GRID_START = time(8, 0)
+GRID_END = time(20, 0)
+GRID_MINUTES = 15
+
+
+def get_interview_days(edition):
+    return list(edition.interview_days.values_list("date", flat=True))
+
+
+def get_upcoming_interview_days(edition):
+    return list(
+        edition.interview_days.filter(date__gte=timezone.localdate()).values_list(
+            "date", flat=True
+        )
+    )
+
+
+@transaction.atomic
+def set_interview_days(edition, dates, info):
+    dates = set(dates)
+    removed = list(
+        edition.interview_days.exclude(date__in=dates).values_list("date", flat=True)
+    )
+    Availability.objects.filter(
+        application__form__edition=edition, date__in=removed
+    ).delete()
+    edition.interview_days.filter(date__in=removed).delete()
+    existing = set(get_interview_days(edition))
+    InterviewDay.objects.bulk_create(
+        InterviewDay(edition=edition, date=date) for date in sorted(dates - existing)
+    )
+    edition.interview_info = (info or "").strip() or None
+    edition.save(update_fields=["interview_info"])
+
+
+def is_on_grid(value):
+    return (
+        GRID_START <= value <= GRID_END
+        and value.minute % GRID_MINUTES == 0
+        and value.second == 0
+        and value.microsecond == 0
+    )
+
+
+def get_availability(application):
+    return application.availabilities.filter(date__gte=timezone.localdate()).order_by(
+        "date", "start_time"
+    )
+
+
+@transaction.atomic
+def set_availability(application, slots):
+    days = set(get_upcoming_interview_days(application.form.edition))
+    for slot in slots:
+        if slot["date"] not in days:
+            raise ValidationError(
+                {
+                    "slots": "Możesz wybrać tylko dni rozmów ustawione przez organizację, od dziś."
+                }
+            )
+        if not (
+            is_on_grid(slot["start_time"])
+            and is_on_grid(slot["end_time"])
+            and slot["start_time"] < slot["end_time"]
+        ):
+            raise ValidationError(
+                {"slots": "Godziny muszą mieścić się między 8:00 a 20:00, co 15 minut."}
+            )
+    application.availabilities.all().delete()
+    Availability.objects.bulk_create(
+        Availability(application=application, **slot) for slot in slots
+    )
+
+
+def get_upcoming_interview(application):
+    return (
+        application.interviews.filter(date__gte=timezone.localdate())
+        .select_related("template")
+        .order_by("date", "start_time")
+        .first()
+    )
+
+
+def get_applications_to_schedule(edition):
+    return (
+        Application.objects.filter(
+            form__edition=edition,
+            status__name=ApplicationStatus.Name.INTERVIEW,
+            availabilities__isnull=False,
+        )
+        .exclude(interviews__date__gte=timezone.localdate())
+        .select_related("user")
+        .prefetch_related(
+            Prefetch(
+                "availabilities",
+                queryset=Availability.objects.order_by("date", "start_time"),
+            ),
+            Prefetch(
+                "interviews",
+                queryset=Interview.objects.filter(date__isnull=True)
+                .select_related("template")
+                .order_by("id"),
+                to_attr="pending_interviews",
+            ),
+        )
+        .distinct()
+        .order_by("submitted_at", "id")
+    )
+
+
+@transaction.atomic
+def schedule_interview(application, membership, data):
+    if application.status.name != ApplicationStatus.Name.INTERVIEW:
+        raise ValidationError({"detail": "Ten kandydat nie ma statusu Rozmowa."})
+    if get_upcoming_interview(application):
+        raise ValidationError({"detail": "Ten kandydat ma już umówioną rozmowę."})
+    date, start_time, end_time = data["date"], data["start_time"], data["end_time"]
+    if date < timezone.localdate():
+        raise ValidationError({"date": "Nie można umówić rozmowy w przeszłości."})
+    fits = application.availabilities.filter(
+        date=date, start_time__lte=start_time, end_time__gte=end_time
+    ).exists()
+    if not (
+        fits
+        and is_on_grid(start_time)
+        and is_on_grid(end_time)
+        and start_time < end_time
+    ):
+        raise ValidationError(
+            {"start_time": "Wybierz jeden ciągły przedział z dostępności kandydata."}
+        )
+    interview = application.interviews.filter(date__isnull=True).order_by("id").first()
+    if interview is None:
+        if data.get("template_id") is None:
+            raise ValidationError({"template_id": "Wybierz szablon rozmowy."})
+        interview = create_interview(application, data["template_id"])
+    interview.date = date
+    interview.start_time = start_time
+    interview.end_time = end_time
+    interview.save(update_fields=["date", "start_time", "end_time"])
+    if not interview.interviewers.exists():
+        interview.interviewers.add(membership)
+    send_interview_scheduled(interview)
+    return interview
+
+
+@transaction.atomic
+def cancel_interview(application):
+    interview = get_upcoming_interview(application)
+    if interview is None:
+        raise ValidationError({"detail": "Nie masz umówionej rozmowy."})
+    term = (interview.date, interview.start_time, interview.end_time)
+    interview.date = None
+    interview.start_time = None
+    interview.end_time = None
+    interview.save(update_fields=["date", "start_time", "end_time"])
+    send_interview_cancelled(interview, *term)

@@ -4,6 +4,7 @@ from rest_framework.validators import UniqueValidator
 
 from config.files import IMAGE_VALIDATORS, get_file_url
 from onboarding.serializers import MentorSummarySerializer
+from organizations.models import Membership
 
 from .models import (
     Answer,
@@ -12,6 +13,9 @@ from .models import (
     Choice,
     Form,
     FormQuestion,
+    Interview,
+    InterviewQuestion,
+    InterviewTemplate,
     Note,
     QuestionType,
     Rating,
@@ -304,3 +308,178 @@ class StatisticsSerializer(serializers.Serializer):
     range = serializers.ChoiceField(choices=list(STATISTICS_RANGES))
     recruitment = RecruitmentStatisticsSerializer()
     onboarding = OnboardingStatisticsSerializer()
+
+
+class InterviewQuestionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = InterviewQuestion
+        fields = ("id", "text", "position")
+        read_only_fields = ("position",)
+
+
+class InterviewTemplateSerializer(serializers.ModelSerializer):
+    question_count = serializers.IntegerField(read_only=True, default=0)
+
+    class Meta:
+        model = InterviewTemplate
+        fields = ("id", "name", "question_count")
+
+
+class InterviewTemplateDetailSerializer(serializers.ModelSerializer):
+    questions = serializers.SerializerMethodField()
+
+    class Meta:
+        model = InterviewTemplate
+        fields = ("id", "name", "questions")
+
+    @extend_schema_field(InterviewQuestionSerializer(many=True))
+    def get_questions(self, template):
+        questions = template.questions.filter(is_deleted=False)
+        return InterviewQuestionSerializer(questions, many=True).data
+
+
+class InterviewerSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name")
+    last_name = serializers.CharField(source="user.last_name")
+    email = serializers.EmailField(source="user.email")
+    photo_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Membership
+        fields = ("id", "first_name", "last_name", "email", "photo_url")
+
+    def get_photo_url(self, membership) -> str | None:
+        return get_file_url(membership.user.photo)
+
+
+class InterviewSerializer(serializers.ModelSerializer):
+    template_id = serializers.IntegerField(source="template.id")
+    template_name = serializers.CharField(source="template.name")
+    interviewers = InterviewerSerializer(many=True)
+
+    class Meta:
+        model = Interview
+        fields = (
+            "id",
+            "template_id",
+            "template_name",
+            "date",
+            "start_time",
+            "end_time",
+            "interviewers",
+        )
+
+
+class EditionInterviewSerializer(InterviewSerializer):
+    application_id = serializers.IntegerField(source="application.id")
+    first_name = serializers.CharField(source="application.user.first_name")
+    last_name = serializers.CharField(source="application.user.last_name")
+    email = serializers.EmailField(source="application.user.email")
+    photo_url = serializers.SerializerMethodField()
+
+    class Meta(InterviewSerializer.Meta):
+        fields = (
+            *InterviewSerializer.Meta.fields,
+            "application_id",
+            "first_name",
+            "last_name",
+            "email",
+            "photo_url",
+        )
+
+    def get_photo_url(self, interview) -> str | None:
+        return get_file_url(interview.application.user.photo)
+
+
+class InterviewCreateSerializer(serializers.Serializer):
+    template_id = serializers.IntegerField()
+
+
+class InterviewersSerializer(serializers.Serializer):
+    membership_ids = serializers.ListField(child=serializers.IntegerField())
+
+
+class InterviewAnswerSerializer(serializers.Serializer):
+    question_id = serializers.IntegerField(read_only=True)
+    text = serializers.CharField(read_only=True)
+    note = serializers.CharField(
+        allow_blank=True, allow_null=True, required=False, max_length=5000
+    )
+    score = serializers.IntegerField(
+        allow_null=True, required=False, min_value=1, max_value=5
+    )
+
+
+class InterviewDaysSerializer(serializers.Serializer):
+    dates = serializers.ListField(child=serializers.DateField())
+    info = serializers.CharField(
+        allow_blank=True, allow_null=True, required=False, max_length=2000
+    )
+
+
+class AvailabilitySlotSerializer(serializers.Serializer):
+    date = serializers.DateField()
+    start_time = serializers.TimeField(format="%H:%M")
+    end_time = serializers.TimeField(format="%H:%M")
+
+
+class AvailabilityUpdateSerializer(serializers.Serializer):
+    slots = AvailabilitySlotSerializer(many=True)
+
+
+class ScheduledInterviewSerializer(serializers.ModelSerializer):
+    template_name = serializers.CharField(source="template.name")
+    start_time = serializers.TimeField(format="%H:%M")
+    end_time = serializers.TimeField(format="%H:%M")
+
+    class Meta:
+        model = Interview
+        fields = ("id", "template_name", "date", "start_time", "end_time")
+
+
+class CandidateAvailabilitySerializer(serializers.Serializer):
+    days = serializers.ListField(child=serializers.DateField())
+    info = serializers.CharField(allow_null=True)
+    slots = AvailabilitySlotSerializer(many=True)
+    interview = ScheduledInterviewSerializer(allow_null=True)
+
+
+class PendingInterviewSerializer(serializers.ModelSerializer):
+    template_name = serializers.CharField(source="template.name")
+
+    class Meta:
+        model = Interview
+        fields = ("id", "template_name")
+
+
+class ApplicationToScheduleSerializer(serializers.ModelSerializer):
+    first_name = serializers.CharField(source="user.first_name")
+    last_name = serializers.CharField(source="user.last_name")
+    email = serializers.EmailField(source="user.email")
+    photo_url = serializers.SerializerMethodField()
+    slots = AvailabilitySlotSerializer(source="availabilities", many=True)
+    pending_interview = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Application
+        fields = (
+            "id",
+            "first_name",
+            "last_name",
+            "email",
+            "photo_url",
+            "slots",
+            "pending_interview",
+        )
+
+    def get_photo_url(self, application) -> str | None:
+        return get_file_url(application.user.photo)
+
+    @extend_schema_field(PendingInterviewSerializer(allow_null=True))
+    def get_pending_interview(self, application):
+        pending = application.pending_interviews
+        return PendingInterviewSerializer(pending[0]).data if pending else None
+
+
+class ScheduleInterviewSerializer(AvailabilitySlotSerializer):
+    template_id = serializers.IntegerField(required=False, allow_null=True)

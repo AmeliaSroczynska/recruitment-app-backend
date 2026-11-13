@@ -235,6 +235,7 @@ class InterviewTemplate(models.Model):
         related_name="interview_templates",
     )
     name = models.CharField(max_length=200)
+    is_deleted = models.BooleanField(default=False)
 
     class Meta:
         db_table = "recruitment_interview_template"
@@ -249,6 +250,7 @@ class InterviewQuestion(models.Model):
     )
     text = models.TextField()
     position = models.PositiveIntegerField()
+    is_deleted = models.BooleanField(default=False)
 
     class Meta:
         db_table = "recruitment_interview_question"
