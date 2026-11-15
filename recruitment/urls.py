@@ -1,6 +1,7 @@
 from django.urls import path
 
 from .views import (
+    ApplicationAiAnalysisView,
     ApplicationCreateView,
     ApplicationDetailView,
     ApplicationListView,
@@ -70,6 +71,10 @@ application_urlpatterns = [
     path(
         "<int:edition_id>/applications/<int:application_id>/",
         ApplicationDetailView.as_view(),
+    ),
+    path(
+        "<int:edition_id>/applications/<int:application_id>/ai-analysis/",
+        ApplicationAiAnalysisView.as_view(),
     ),
     path(
         "<int:edition_id>/applications/<int:application_id>/ratings/",

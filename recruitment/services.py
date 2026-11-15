@@ -10,6 +10,7 @@ from onboarding.models import Task
 from organizations.models import Role
 from organizations.services import generate_slug
 
+from .ai import build_application_text, generate_analysis
 from .emails import (
     send_application_accepted,
     send_interview_cancelled,
@@ -251,6 +252,15 @@ def change_status(application, status_name):
         send_application_accepted(application)
     if is_new_invitation:
         send_interview_invitation(application)
+
+
+def generate_ai_analysis(application):
+    text = build_application_text(application)
+    if not text:
+        raise ValidationError({"detail": "To zgłoszenie nie ma odpowiedzi do analizy."})
+    application.ai_analysis = generate_analysis(text)
+    application.save(update_fields=["ai_analysis"])
+    return application
 
 
 def list_ratings(application):

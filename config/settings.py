@@ -211,6 +211,8 @@ REST_FRAMEWORK = {
         "auth_code": "30/hour",
         "auth_login": "60/hour",
         "application_submit": "20/hour",
+        "ai_analysis": "20/hour",
+        "ai_analysis_daily": "200/day",
     },
 }
 
@@ -226,6 +228,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Formularz", "description": "Formularz zgłoszeniowy edycji"},
         {"name": "Zgłoszenia", "description": "Zgłoszenia kandydatów"},
         {"name": "Oceny i notatki", "description": "Oceny i notatki zespołu"},
+        {"name": "Analiza AI", "description": "Analiza zgłoszenia przez model AI"},
         {"name": "Szablony rozmów", "description": "Szablony rozmów i ich pytania"},
         {"name": "Rozmowy", "description": "Rozmowy z kandydatami"},
         {"name": "Kalendarz", "description": "Dni rozmów i dostępność kandydatów"},
@@ -264,6 +267,13 @@ DEFAULT_FROM_EMAIL = os.getenv(
 )
 
 FRONTEND_URL = os.getenv("DJANGO_FRONTEND_URL", "https://rekrutownik.vercel.app")
+
+AI_API_URL = os.getenv(
+    "AI_API_URL",
+    "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+)
+AI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+AI_MODEL = os.getenv("AI_MODEL", "gemini-3.5-flash")
 
 LOGIN_CODE_LIFETIME_MINUTES = 10
 LOGIN_CODE_MAX_ATTEMPTS = 5
