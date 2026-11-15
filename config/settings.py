@@ -211,6 +211,8 @@ REST_FRAMEWORK = {
         "auth_code": "30/hour",
         "auth_login": "60/hour",
         "application_submit": "20/hour",
+        "ai_analysis": "20/hour",
+        "ai_analysis_daily": "200/day",
     },
 }
 
@@ -226,6 +228,7 @@ SPECTACULAR_SETTINGS = {
         {"name": "Formularz", "description": "Formularz zgłoszeniowy edycji"},
         {"name": "Zgłoszenia", "description": "Zgłoszenia kandydatów"},
         {"name": "Oceny i notatki", "description": "Oceny i notatki zespołu"},
+        {"name": "Analiza AI", "description": "Analiza zgłoszenia przez model AI"},
         {"name": "Szablony rozmów", "description": "Szablony rozmów i ich pytania"},
         {"name": "Rozmowy", "description": "Rozmowy z kandydatami"},
         {"name": "Kalendarz", "description": "Dni rozmów i dostępność kandydatów"},

@@ -6,12 +6,14 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.parsers import MultiPartParser
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.throttling import ScopedRateThrottle
 from rest_framework.views import APIView
 
 from config.files import replace_file
 from onboarding.services import reorder
 from organizations.permissions import IsCandidate, IsEditionMember, IsRecruiter
 
+from .ai import AiUnavailable
 from .emails import send_application_received
 from .models import (
     Application,
@@ -63,6 +65,7 @@ from .services import (
     create_interview_template,
     create_note,
     create_question,
+    generate_ai_analysis,
     get_application_details,
     get_applications_to_schedule,
     get_availability,
@@ -91,6 +94,7 @@ from .services import (
     soft_delete,
     submit_application,
 )
+from .throttling import AiAnalysisDailyThrottle
 
 
 class FormDetailView(APIView):
@@ -491,6 +495,38 @@ class ApplicationDetailView(APIView):
         return Response(
             ApplicationDetailSerializer(self.get_application(application_id)).data
         )
+
+
+class ApplicationAiAnalysisView(APIView):
+    permission_classes = (IsAuthenticated, IsRecruiter)
+    throttle_classes = (ScopedRateThrottle, AiAnalysisDailyThrottle)
+    throttle_scope = "ai_analysis"
+
+    @extend_schema(
+        tags=["Analiza AI"],
+        summary="Wygeneruj analizę AI",
+        description=(
+            "Wysyła do modelu AI same pytania i odpowiedzi kandydata, bez imienia, "
+            "nazwiska i e-maila, i zapisuje krótką analizę w zgłoszeniu. Kolejne "
+            "wywołanie nadpisuje poprzednią analizę. Limit na osobę i dzienny limit "
+            "dla całej aplikacji. Gdy model nie odpowiada, zwraca 503. Rekruter i "
+            "koordynator."
+        ),
+        request=None,
+        responses={200: ApplicationDetailSerializer},
+    )
+    def post(self, request, edition_id, application_id):
+        application = get_object_or_404(
+            get_application_details(self.edition), pk=application_id
+        )
+        try:
+            generate_ai_analysis(application)
+        except AiUnavailable:
+            return Response(
+                {"detail": "Analiza AI jest teraz niedostępna."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+        return Response(ApplicationDetailSerializer(application).data)
 
 
 class ApplicationScopedView(APIView):
