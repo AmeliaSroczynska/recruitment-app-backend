@@ -273,7 +273,7 @@ AI_API_URL = os.getenv(
     "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
 )
 AI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-AI_MODEL = os.getenv("AI_MODEL", "gemini-3.8-flash")
+AI_MODEL = os.getenv("AI_MODEL", "gemini-3.5-flash")
 
 LOGIN_CODE_LIFETIME_MINUTES = 10
 LOGIN_CODE_MAX_ATTEMPTS = 5
