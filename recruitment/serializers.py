@@ -187,6 +187,7 @@ class ApplicationDetailSerializer(ApplicationListSerializer):
             "accepted_at",
             "answers",
             "mentor",
+            "ai_analysis",
         )
 
 
