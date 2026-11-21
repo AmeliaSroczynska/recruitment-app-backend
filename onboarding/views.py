@@ -51,7 +51,7 @@ class TaskListView(APIView):
     @extend_schema(
         tags=["Wdrożenie"],
         summary="Lista zadań wdrażających",
-        description="Zadania edycji w kolejności. Widzi każdy członek edycji.",
+        description="Zadania edycji w kolejności. Widzą mentor, koordynator i obserwator.",
         responses={200: TaskSerializer(many=True)},
     )
     def get(self, request, edition_id):
@@ -203,7 +203,7 @@ class FaqListView(APIView):
     @extend_schema(
         tags=["Wdrożenie"],
         summary="Lista pytań FAQ",
-        description="Pytania i odpowiedzi edycji w kolejności. Widzi każdy członek.",
+        description="Pytania i odpowiedzi edycji w kolejności. Widzą mentor, koordynator i obserwator.",
         responses={200: FaqQuestionSerializer(many=True)},
     )
     def get(self, request, edition_id):
@@ -303,7 +303,7 @@ class DocumentListView(APIView):
     @extend_schema(
         tags=["Wdrożenie"],
         summary="Lista dokumentów bazy wiedzy",
-        description="Dokumenty edycji w kolejności. Widzi każdy członek edycji.",
+        description="Dokumenty edycji w kolejności. Widzą mentor, koordynator i obserwator.",
         responses={200: DocumentSerializer(many=True)},
     )
     def get(self, request, edition_id):
@@ -429,7 +429,7 @@ class MentorListView(APIView):
         tags=["Wdrożenie"],
         summary="Lista mentorów",
         description=(
-            "Mentorzy edycji z liczbą zajętych miejsc. Widzi każdy członek edycji."
+            "Mentorzy edycji z liczbą zajętych miejsc. Widzą mentor, koordynator i obserwator."
         ),
         responses={200: MentorSerializer(many=True)},
     )
@@ -463,7 +463,7 @@ class MentorDetailView(APIView):
         tags=["Wdrożenie"],
         summary="Profil mentora",
         description=(
-            "Dane mentora i osoby, które go wybrały. Widzi każdy członek edycji."
+            "Dane mentora i osoby, które go wybrały. Widzą mentor, koordynator i obserwator."
         ),
         responses={200: MentorDetailSerializer},
     )

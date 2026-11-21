@@ -11,7 +11,14 @@ from rest_framework.views import APIView
 
 from config.files import replace_file
 from onboarding.services import reorder
-from organizations.permissions import IsCandidate, IsEditionMember, IsRecruiter
+from organizations.models import Role
+from organizations.permissions import (
+    IsCandidate,
+    IsEditionMember,
+    IsRecruiter,
+    IsRecruiterOrReadOnly,
+    has_role,
+)
 
 from .ai import AiUnavailable
 from .emails import send_application_received
@@ -65,6 +72,7 @@ from .services import (
     create_interview_template,
     create_note,
     create_question,
+    delete_application,
     generate_ai_analysis,
     get_application_details,
     get_applications_to_schedule,
@@ -105,7 +113,7 @@ class FormDetailView(APIView):
         summary="Ustawienia formularza",
         description=(
             "Formularz zgłoszeniowy edycji. Każda edycja ma jeden formularz, "
-            "który tworzy się sam przy pierwszym wejściu. Widzi każdy członek edycji."
+            "który tworzy się sam przy pierwszym wejściu. Widzą rekruter, koordynator i obserwator."
         ),
         responses={200: FormSerializer},
     )
@@ -184,7 +192,7 @@ class QuestionListView(APIView):
     @extend_schema(
         tags=["Formularz"],
         summary="Lista pytań",
-        description="Pytania formularza w kolejności, razem z opcjami odpowiedzi. Widzi każdy członek edycji.",
+        description="Pytania formularza w kolejności, razem z opcjami odpowiedzi. Widzą rekruter, koordynator i obserwator.",
         responses={200: QuestionSerializer(many=True)},
     )
     def get(self, request, edition_id):
@@ -454,7 +462,7 @@ class ApplicationListView(APIView):
 
 
 class ApplicationDetailView(APIView):
-    permission_classes = (IsAuthenticated, IsRecruiter)
+    permission_classes = (IsAuthenticated, IsEditionMember)
 
     def get_application(self, application_id):
         return get_object_or_404(
@@ -481,7 +489,7 @@ class ApplicationDetailView(APIView):
         summary="Zmień status zgłoszenia",
         description=(
             'Przy statusie "Przyjęty" zapisuje się data przyjęcia. '
-            "Rekruter i koordynator."
+            "Każdy członek edycji poza obserwatorem."
         ),
         request=ApplicationStatusSerializer,
         responses={200: ApplicationDetailSerializer},
@@ -496,9 +504,30 @@ class ApplicationDetailView(APIView):
             ApplicationDetailSerializer(self.get_application(application_id)).data
         )
 
+    @extend_schema(
+        tags=["Zgłoszenia"],
+        summary="Usuń zgłoszenie",
+        description=(
+            "Usuwa zgłoszenie na zawsze razem z odpowiedziami, ocenami, notatkami, "
+            "rozmowami i dostępnością kandydata. Konto kandydata też znika, "
+            "chyba że ma inne zgłoszenia albo należy do zespołu jakiejś edycji. "
+            "Rekruter i koordynator."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id, application_id):
+        if not has_role(self.membership, Role.Name.RECRUITER):
+            raise PermissionDenied
+        delete_application(
+            get_object_or_404(
+                Application, form__edition=self.edition, pk=application_id
+            )
+        )
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class ApplicationAiAnalysisView(APIView):
-    permission_classes = (IsAuthenticated, IsRecruiter)
+    permission_classes = (IsAuthenticated, IsEditionMember)
     throttle_classes = (ScopedRateThrottle, AiAnalysisDailyThrottle)
     throttle_scope = "ai_analysis"
 
@@ -509,8 +538,8 @@ class ApplicationAiAnalysisView(APIView):
             "Wysyła do modelu AI same pytania i odpowiedzi kandydata, bez imienia, "
             "nazwiska i e-maila, i zapisuje krótką analizę w zgłoszeniu. Kolejne "
             "wywołanie nadpisuje poprzednią analizę. Limit na osobę i dzienny limit "
-            "dla całej aplikacji. Gdy model nie odpowiada, zwraca 503. Rekruter i "
-            "koordynator."
+            "dla całej aplikacji. Gdy model nie odpowiada, zwraca 503. "
+            "Każdy członek edycji poza obserwatorem."
         ),
         request=None,
         responses={200: ApplicationDetailSerializer},
@@ -675,7 +704,7 @@ class StatisticsView(APIView):
 
 
 class InterviewTemplateListView(APIView):
-    permission_classes = (IsAuthenticated, IsRecruiter)
+    permission_classes = (IsAuthenticated, IsRecruiterOrReadOnly)
 
     @extend_schema(
         tags=["Szablony rozmów"],
@@ -722,7 +751,7 @@ class InterviewTemplateDetailView(InterviewTemplateScopedView):
     @extend_schema(
         tags=["Szablony rozmów"],
         summary="Szablon rozmowy",
-        description="Nazwa i pytania szablonu w kolejności. Widzi każdy członek edycji.",
+        description="Nazwa i pytania szablonu w kolejności. Widzą rekruter, koordynator i obserwator.",
         responses={200: InterviewTemplateDetailSerializer},
     )
     def get(self, request, edition_id, template_id):
@@ -762,7 +791,7 @@ class InterviewQuestionListView(InterviewTemplateScopedView):
     @extend_schema(
         tags=["Szablony rozmów"],
         summary="Pytania szablonu",
-        description="Pytania szablonu w kolejności. Widzi każdy członek edycji.",
+        description="Pytania szablonu w kolejności. Widzą rekruter, koordynator i obserwator.",
         responses={200: InterviewQuestionSerializer(many=True)},
     )
     def get(self, request, edition_id, template_id):
@@ -851,7 +880,6 @@ class InterviewQuestionDetailView(InterviewTemplateScopedView):
 
 
 class InterviewListView(ApplicationScopedView):
-    permission_classes = (IsAuthenticated, IsRecruiter)
 
     @extend_schema(
         tags=["Rozmowy"],
@@ -871,7 +899,7 @@ class InterviewListView(ApplicationScopedView):
         summary="Dodaj rozmowę",
         description=(
             "Nowa rozmowa z wybranego szablonu, jeszcze bez terminu i bez osób "
-            "prowadzących. Rekruter i koordynator."
+            "prowadzących. Każdy członek edycji poza obserwatorem."
         ),
         request=InterviewCreateSerializer,
         responses={201: InterviewSerializer},
@@ -890,7 +918,6 @@ class InterviewListView(ApplicationScopedView):
 
 
 class InterviewScopedView(ApplicationScopedView):
-    permission_classes = (IsAuthenticated, IsRecruiter)
 
     def get_interview(self, application_id, interview_id):
         return get_object_or_404(
@@ -904,7 +931,7 @@ class InterviewDetailView(InterviewScopedView):
         summary="Usuń rozmowę",
         description=(
             "Rozmowa znika na stałe, razem z notatkami i ocenami z niej. "
-            "Rekruter i koordynator."
+            "Każdy członek edycji poza obserwatorem."
         ),
         responses={204: None},
     )
@@ -920,7 +947,7 @@ class InterviewInterviewersView(InterviewScopedView):
         description=(
             "Przyjmuje id członkostw wszystkich osób, które prowadzą rozmowę, "
             "i podmienia całą listę. Prowadzić mogą tylko rekruterzy i "
-            "koordynatorzy tej edycji. Rekruter i koordynator."
+            "koordynatorzy tej edycji. Każdy członek edycji poza obserwatorem."
         ),
         request=InterviewersSerializer,
         responses={200: InterviewSerializer},
@@ -944,8 +971,8 @@ class InterviewAnswerListView(InterviewScopedView):
         description=(
             "Pytania z szablonu rozmowy w kolejności, a przy każdym notatka z "
             "odpowiedzi kandydata i ocena 1-5 (albo null). Pytania usunięte z "
-            "szablonu zostają tylko wtedy, gdy mają już odpowiedź. Rekruter i "
-            "koordynator."
+            "szablonu zostają tylko wtedy, gdy mają już odpowiedź. "
+            "Każdy członek edycji poza obserwatorem."
         ),
         responses={200: InterviewAnswerSerializer(many=True)},
     )
@@ -963,7 +990,7 @@ class InterviewAnswerDetailView(InterviewScopedView):
         description=(
             "Zapisuje notatkę albo ocenę przy jednym pytaniu rozmowy. Wystarczy "
             "wysłać tylko to, co się zmienia. Pusta notatka i ocena null "
-            "czyszczą wartość. Rekruter i koordynator."
+            "czyszczą wartość. Każdy członek edycji poza obserwatorem."
         ),
         request=InterviewAnswerSerializer,
         responses={200: InterviewAnswerSerializer},
@@ -978,7 +1005,7 @@ class InterviewAnswerDetailView(InterviewScopedView):
 
 
 class EditionInterviewListView(APIView):
-    permission_classes = (IsAuthenticated, IsEditionMember)
+    permission_classes = (IsAuthenticated, IsRecruiter)
 
     @extend_schema(
         tags=["Rozmowy"],
@@ -986,7 +1013,7 @@ class EditionInterviewListView(APIView):
         description=(
             "Rozmowy ze wszystkimi kandydatami tej edycji, od najpóźniejszego "
             "terminu, a na końcu te bez terminu. Szukanie działa po imieniu, "
-            "nazwisku i e-mailu kandydata. Widzi każdy członek edycji."
+            "nazwisku i e-mailu kandydata. Widzą rekruter, koordynator i obserwator."
         ),
         parameters=[OpenApiParameter("search", str)],
         responses={200: EditionInterviewSerializer(many=True)},
@@ -1012,7 +1039,7 @@ class InterviewDaysView(APIView):
         summary="Dni rozmów",
         description=(
             "Dni, w które odbywają się rozmowy, i informacja dla kandydatów "
-            "(np. miejsce spotkań). Widzi każdy członek edycji."
+            "(np. miejsce spotkań). Widzą rekruter, koordynator i obserwator."
         ),
         responses={200: InterviewDaysSerializer},
     )
@@ -1159,14 +1186,14 @@ class CandidateInterviewCancelView(CandidateAvailabilityView):
 
 
 class ScheduledInterviewListView(APIView):
-    permission_classes = (IsAuthenticated, IsEditionMember)
+    permission_classes = (IsAuthenticated, IsRecruiter)
 
     @extend_schema(
         tags=["Kalendarz"],
         summary="Umówione rozmowy",
         description=(
             "Rozmowy z terminem, od najwcześniejszej. Z mine=true tylko te, "
-            "które prowadzi zalogowana osoba. Widzi każdy członek edycji."
+            "które prowadzi zalogowana osoba. Widzą rekruter, koordynator i obserwator."
         ),
         parameters=[OpenApiParameter("mine", bool)],
         responses={200: EditionInterviewSerializer(many=True)},

@@ -9,7 +9,7 @@ from rest_framework.views import APIView
 from config.files import replace_file
 
 from .models import Role
-from .permissions import IsCoordinator
+from .permissions import IsCoordinator, IsCoordinatorOrReadOnly
 from .serializers import (
     CreatedOrganizationSerializer,
     EditionSerializer,
@@ -59,7 +59,7 @@ class OrganizationDetailView(APIView):
     @extend_schema(
         tags=["Organizacja"],
         summary="Dane organizacji",
-        description="Organizacja, do której należy edycja. Widzi każdy członek edycji.",
+        description="Organizacja, do której należy edycja. Widzą koordynator i obserwator.",
         responses={200: OrganizationSerializer},
     )
     def get(self, request, edition_id):
@@ -218,7 +218,7 @@ class RoleListView(APIView):
 
 
 class MemberListView(APIView):
-    permission_classes = (IsAuthenticated, IsCoordinator)
+    permission_classes = (IsAuthenticated, IsCoordinatorOrReadOnly)
 
     @extend_schema(
         tags=["Członkowie"],

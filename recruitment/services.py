@@ -6,6 +6,7 @@ from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 
 from accounts.services import get_or_create_user
+from config.files import delete_files
 from onboarding.models import Task
 from organizations.models import Role
 from organizations.services import generate_slug
@@ -252,6 +253,27 @@ def change_status(application, status_name):
         send_application_accepted(application)
     if is_new_invitation:
         send_interview_invitation(application)
+
+
+def has_other_activity(user):
+    return (
+        user.is_staff
+        or user.is_superuser
+        or user.applications.exists()
+        or user.memberships.exists()
+    )
+
+
+@transaction.atomic
+def delete_application(application):
+    user = application.user
+    files = [answer.file for answer in application.answers.all() if answer.file]
+    application.delete()
+    if not has_other_activity(user):
+        if user.photo:
+            files.append(user.photo)
+        user.delete()
+    transaction.on_commit(lambda: delete_files(files))
 
 
 def generate_ai_analysis(application):

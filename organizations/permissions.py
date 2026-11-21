@@ -23,6 +23,7 @@ def has_role(membership, role):
 
 class IsEditionMember(BasePermission):
     required_role = None
+    read_role = None
 
     def has_permission(self, request, view):
         membership = (
@@ -35,22 +36,35 @@ class IsEditionMember(BasePermission):
         view.membership = membership
         view.edition = membership.edition
         if request.method in SAFE_METHODS:
-            return True
+            return (
+                self.read_role is None
+                or membership.role.name == Role.Name.OBSERVER
+                or has_role(membership, self.read_role)
+            )
         if self.required_role is None:
             return membership.role.name != Role.Name.OBSERVER
         return has_role(membership, self.required_role)
 
 
-class IsCoordinator(IsEditionMember):
+class IsCoordinatorOrReadOnly(IsEditionMember):
     required_role = Role.Name.COORDINATOR
 
 
-class IsRecruiter(IsEditionMember):
+class IsRecruiterOrReadOnly(IsEditionMember):
     required_role = Role.Name.RECRUITER
+
+
+class IsCoordinator(IsCoordinatorOrReadOnly):
+    read_role = Role.Name.COORDINATOR
+
+
+class IsRecruiter(IsRecruiterOrReadOnly):
+    read_role = Role.Name.RECRUITER
 
 
 class IsMentor(IsEditionMember):
     required_role = Role.Name.MENTOR
+    read_role = Role.Name.MENTOR
 
 
 class IsCandidate(BasePermission):
