@@ -135,6 +135,7 @@ class Application(models.Model):
     )
     submitted_at = models.DateTimeField(auto_now_add=True)
     accepted_at = models.DateTimeField(null=True, blank=True)
+    consent_given_at = models.DateTimeField(null=True, blank=True)
     ai_analysis = models.TextField(null=True, blank=True)
 
     class Meta:

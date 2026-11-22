@@ -382,8 +382,9 @@ class ApplicationCreateView(APIView):
         summary="Wyślij zgłoszenie",
         description=(
             "Kandydat wysyła formularz bez logowania. Konto zakłada się samo po "
-            "e-mailu, a z jednego adresu można wysłać jedno zgłoszenie. Błędy "
-            "odpowiedzi są w polu answers pod id pytania."
+            "e-mailu, a z jednego adresu można wysłać jedno zgłoszenie. Bez "
+            "zaznaczonej zgody na przetwarzanie danych zgłoszenie jest "
+            "odrzucane. Błędy odpowiedzi są w polu answers pod id pytania."
         ),
         request=ApplicationCreateSerializer,
         responses={
