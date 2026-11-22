@@ -1,0 +1,37 @@
+name: Usuwanie starych danych
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  delete-expired-data:
+    runs-on: ubuntu-latest
+    concurrency: delete-expired-data
+
+    env:
+      DJANGO_SECRET_KEY: ci-only-not-a-real-secret
+      DJANGO_DEBUG: "False"
+      DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
+      DJANGO_STORAGE_BUCKET: ${{ secrets.DJANGO_STORAGE_BUCKET }}
+      DJANGO_STORAGE_ENDPOINT_URL: ${{ secrets.DJANGO_STORAGE_ENDPOINT_URL }}
+      DJANGO_STORAGE_REGION: ${{ secrets.DJANGO_STORAGE_REGION }}
+      DJANGO_STORAGE_ACCESS_KEY: ${{ secrets.DJANGO_STORAGE_ACCESS_KEY }}
+      DJANGO_STORAGE_SECRET_KEY: ${{ secrets.DJANGO_STORAGE_SECRET_KEY }}
+
+    steps:
+      - name: Pobranie kodu
+        uses: actions/checkout@v5
+
+      - name: Instalacja Pythona 3.12
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalacja zależności
+        run: pip install -r requirements.txt
+
+      - name: Usunięcie danych starszych niż 2 lata
+        run: python manage.py delete_expired_data

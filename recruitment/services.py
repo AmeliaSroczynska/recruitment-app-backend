@@ -1,5 +1,6 @@
 from datetime import time, timedelta
 
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.db.models import Avg, Count, F, Max, Prefetch, Q
 from django.utils import timezone
@@ -8,8 +9,8 @@ from rest_framework.exceptions import ValidationError
 from accounts.services import get_or_create_user
 from config.files import delete_files
 from onboarding.models import Task
-from organizations.models import Role
-from organizations.services import generate_slug
+from organizations.models import Edition, Role
+from organizations.services import delete_edition, generate_slug
 
 from .ai import build_application_text, generate_analysis
 from .emails import (
@@ -274,6 +275,33 @@ def delete_application(application):
             files.append(user.photo)
         user.delete()
     transaction.on_commit(lambda: delete_files(files))
+
+
+RETENTION_PERIOD = timedelta(days=730)
+
+
+@transaction.atomic
+def delete_expired_edition(edition):
+    applications = Application.objects.filter(form__edition=edition)
+    user_ids = set(applications.values_list("user_id", flat=True))
+    user_ids |= set(edition.memberships.values_list("user_id", flat=True))
+    answers = Answer.objects.filter(application__in=applications)
+    files = [answer.file for answer in answers if answer.file]
+    delete_edition(edition)
+    for user in get_user_model().objects.filter(id__in=user_ids):
+        if not has_other_activity(user):
+            if user.photo:
+                files.append(user.photo)
+            user.delete()
+    transaction.on_commit(lambda: delete_files(files))
+
+
+def delete_expired_editions():
+    deadline = timezone.now() - RETENTION_PERIOD
+    expired = list(Edition.objects.filter(is_active=False, created_at__lt=deadline))
+    for edition in expired:
+        delete_expired_edition(edition)
+    return len(expired)
 
 
 def generate_ai_analysis(application):
