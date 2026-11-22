@@ -94,6 +94,9 @@ class QuestionSerializer(serializers.ModelSerializer):
 
 class PublicFormSerializer(serializers.ModelSerializer):
     organization_name = serializers.CharField(source="edition.organization.name")
+    organization_email = serializers.EmailField(
+        source="edition.organization.contact_email"
+    )
     header_image_url = serializers.SerializerMethodField()
     questions = serializers.SerializerMethodField()
 
@@ -103,6 +106,7 @@ class PublicFormSerializer(serializers.ModelSerializer):
             "title",
             "description",
             "organization_name",
+            "organization_email",
             "header_image_url",
             "is_accepting_responses",
             "questions",
@@ -129,9 +133,15 @@ class ApplicationCreateSerializer(serializers.Serializer):
     last_name = serializers.CharField(max_length=150)
     email = serializers.EmailField()
     answers = AnswerInputSerializer(many=True, required=False, default=list)
+    consent = serializers.BooleanField()
 
     def validate_answers(self, answers):
         return prepare_answers(self.context["form"], answers)
+
+    def validate_consent(self, consent):
+        if not consent:
+            raise serializers.ValidationError("Zaznacz zgodę, żeby wysłać zgłoszenie.")
+        return consent
 
 
 class ApplicationListSerializer(serializers.ModelSerializer):

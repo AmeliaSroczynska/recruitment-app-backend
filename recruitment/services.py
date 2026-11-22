@@ -159,7 +159,7 @@ def prepare_answers(form, answers):
 
 
 @transaction.atomic
-def submit_application(form, first_name, last_name, email, answers):
+def submit_application(form, first_name, last_name, email, answers, consent):
     if not form.is_accepting_responses:
         raise ValidationError({"detail": "Ten formularz nie przyjmuje już zgłoszeń."})
     user = get_or_create_user(email)
@@ -175,6 +175,7 @@ def submit_application(form, first_name, last_name, email, answers):
             form=form,
             user=user,
             status=ApplicationStatus.objects.get(name=ApplicationStatus.Name.NEW),
+            consent_given_at=timezone.now(),
         )
     except IntegrityError:
         raise ValidationError({"email": DUPLICATE_APPLICATION_MESSAGE}) from None
