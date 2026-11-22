@@ -29,6 +29,7 @@ class Edition(models.Model):
     name = models.CharField(max_length=200)
     is_active = models.BooleanField(default=False)
     interview_info = models.TextField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         db_table = "organizations_edition"

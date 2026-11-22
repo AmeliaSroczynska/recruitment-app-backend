@@ -880,7 +880,6 @@ class InterviewQuestionDetailView(InterviewTemplateScopedView):
 
 
 class InterviewListView(ApplicationScopedView):
-
     @extend_schema(
         tags=["Rozmowy"],
         summary="Rozmowy kandydata",
@@ -918,7 +917,6 @@ class InterviewListView(ApplicationScopedView):
 
 
 class InterviewScopedView(ApplicationScopedView):
-
     def get_interview(self, application_id, interview_id):
         return get_object_or_404(
             get_interviews(self.get_application(application_id)), pk=interview_id
