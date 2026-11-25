@@ -5,6 +5,7 @@ from rest_framework.exceptions import ValidationError
 
 from accounts.services import get_or_create_user
 from config.files import delete_files
+from recruitment.models import Answer
 
 from .models import Edition, Membership, Organization, Role
 
@@ -105,3 +106,16 @@ def delete_edition(edition):
         newest = organization.editions.order_by("-id").first()
         newest.is_active = True
         newest.save(update_fields=["is_active"])
+
+
+@transaction.atomic
+def delete_organization(organization):
+    files = [organization.logo] if organization.logo else []
+    for edition in organization.editions.all():
+        files += get_edition_files(edition)
+    answers = Answer.objects.filter(
+        application__form__edition__organization=organization
+    )
+    files += [answer.file for answer in answers if answer.file]
+    organization.delete()
+    transaction.on_commit(lambda: delete_files(files))

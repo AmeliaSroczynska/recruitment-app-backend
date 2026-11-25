@@ -26,6 +26,7 @@ from .services import (
     create_edition,
     create_organization,
     delete_edition,
+    delete_organization,
     remove_member,
 )
 
@@ -79,6 +80,19 @@ class OrganizationDetailView(APIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
+
+    @extend_schema(
+        tags=["Organizacja"],
+        summary="Usuń organizację",
+        description=(
+            "Tylko koordynator. Usuwa organizację razem ze wszystkimi edycjami "
+            "i wszystkim, co w nich jest, także plikami. Tego nie da się cofnąć."
+        ),
+        responses={204: None},
+    )
+    def delete(self, request, edition_id):
+        delete_organization(self.edition.organization)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class OrganizationLogoView(APIView):
