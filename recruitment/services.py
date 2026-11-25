@@ -673,18 +673,21 @@ def get_upcoming_interview(application):
 
 
 def get_applications_to_schedule(edition):
+    today = timezone.localdate()
     return (
         Application.objects.filter(
             form__edition=edition,
             status__name=ApplicationStatus.Name.INTERVIEW,
-            availabilities__isnull=False,
+            availabilities__date__gte=today,
         )
-        .exclude(interviews__date__gte=timezone.localdate())
+        .exclude(interviews__date__gte=today)
         .select_related("user")
         .prefetch_related(
             Prefetch(
                 "availabilities",
-                queryset=Availability.objects.order_by("date", "start_time"),
+                queryset=Availability.objects.filter(date__gte=today).order_by(
+                    "date", "start_time"
+                ),
             ),
             Prefetch(
                 "interviews",
