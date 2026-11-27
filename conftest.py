@@ -4,6 +4,7 @@ from rest_framework.test import APIClient
 
 from accounts.models import User
 from organizations.models import Edition, Membership, Organization, Role
+from recruitment.models import Application, ApplicationStatus, Form
 
 
 @pytest.fixture(autouse=True)
@@ -33,7 +34,7 @@ def user(db):
 @pytest.fixture
 def edition(db):
     organization = Organization.objects.create(
-        name="Solvro", contact_email="kontakt@example.com", slug="solvro"
+        name="Koło Testowe", contact_email="kontakt@example.com", slug="kolo-testowe"
     )
     return Edition.objects.create(
         organization=organization, name="Nabór 2026", is_active=True
@@ -50,6 +51,25 @@ def make_member(edition):
         )
         return Membership.objects.create(
             edition=edition, user=member, role=Role.objects.get(name=role_name)
+        )
+
+    return make
+
+
+@pytest.fixture
+def form(edition):
+    return Form.objects.create(
+        edition=edition, title="Nabór 2026", slug="kolo-testowe-2026"
+    )
+
+
+@pytest.fixture
+def make_application(form):
+    def make(candidate, status_name=ApplicationStatus.Name.NEW):
+        return Application.objects.create(
+            user=candidate,
+            form=form,
+            status=ApplicationStatus.objects.get(name=status_name),
         )
 
     return make
